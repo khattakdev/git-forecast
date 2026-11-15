@@ -102,6 +102,38 @@ export const scenarios: Scenario[] = [
       { subject: "Add extra file", files: { "extra.txt": lines("extra") } },
     ],
   },
+  {
+    name: "rebase-only-conflict",
+    description:
+      "merge would be clean, but an intermediate rebase step conflicts",
+    base: {
+      "app.txt": appLines("greeting = hello"),
+      "notes.txt": lines("todo: nothing yet"),
+    },
+    incoming: [
+      {
+        subject: "Reword greeting in app",
+        files: { "app.txt": appLines("greeting = hi there") },
+      },
+    ],
+    // You try a change and then undo it. Overall your branch leaves app.txt
+    // as it was at the base, so a merge just takes main's line. A rebase
+    // replays step 2 (hello → howdy) onto "hi there" and conflicts.
+    feature: [
+      {
+        subject: "Update notes",
+        files: { "notes.txt": lines("todo: ship it") },
+      },
+      {
+        subject: "Try a new greeting",
+        files: { "app.txt": appLines("greeting = howdy") },
+      },
+      {
+        subject: "Revert greeting",
+        files: { "app.txt": appLines("greeting = hello") },
+      },
+    ],
+  },
 ];
 
 /** Ten lines with `greeting` on line 5, so both sides edit the same line. */
