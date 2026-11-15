@@ -1,0 +1,37 @@
+{
+  "name": "git-forecast",
+  "version": "0.0.0",
+  "description": "A smarter git status that forecasts conflicts before you sync",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "git-forecast": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@git-forecast/core": "0.0.0",
+    "picocolors": "^1.1.1"
+  },
+  "keywords": [
+    "git",
+    "cli",
+    "rebase",
+    "merge",
+    "conflicts",
+    "developer-tools"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/khattakdev/git-forecast.git",
+    "directory": "packages/cli"
+  }
+}

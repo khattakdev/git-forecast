@@ -1,0 +1,27 @@
+{
+  "name": "git-forecast-repo",
+  "private": true,
+  "type": "module",
+  "description": "Monorepo for git-forecast: a smarter git status that forecasts conflicts before you sync",
+  "license": "MIT",
+  "workspaces": [
+    "packages/core",
+    "packages/cli"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "vitest run --passWithNoTests",
+    "lint": "biome check .",
+    "format": "biome check --write ."
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.7",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.12"
+  }
+}
