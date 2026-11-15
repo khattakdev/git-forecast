@@ -17,15 +17,15 @@ Build the test repos before the engine, so every feature has a known right answe
 1. Write `fixtures/build.ts`: creates small throwaway repos in a temp folder with plain Git commands, each with a local bare repo acting as `origin`.
 2. Scenarios:
 
-| Scenario | What it tests |
-| --- | --- |
-| `clean` | main moved, no files overlap |
-| `conflict-step-2` | rebase stops at your second commit; merge conflicts too |
+| Scenario               | What it tests                                                   |
+| ---------------------- | --------------------------------------------------------------- |
+| `clean`                | main moved, no files overlap                                    |
+| `conflict-step-2`      | rebase stops at your second commit; merge conflicts too         |
 | `rebase-only-conflict` | merge would be clean, but an intermediate rebase step conflicts |
-| `pushed-branch` | your branch is on origin, so rebase means a force push |
-| `squash-prs` | main has squash-merged PRs with `(#123)` in their subjects |
-| `rename` | main renames a file you edited |
-| `messy-local` | uncommitted changes, unpushed commits, old stashes |
+| `pushed-branch`        | your branch is on origin, so rebase means a force push          |
+| `squash-prs`           | main has squash-merged PRs with `(#123)` in their subjects      |
+| `rename`               | main renames a file you edited                                  |
+| `messy-local`          | uncommitted changes, unpushed commits, old stashes              |
 
 3. **Real Git is the judge.** For each scenario, run the real `git rebase` and `git merge` in a copy and record the outcome in `fixtures/expected/<name>.json`.
 4. **Speed test:** clone a large public repo with `--filter=blob:none`, make a branch that diverges from main, time each command.
@@ -36,17 +36,17 @@ Check: `npm run fixtures` builds every scenario, each with an expected file read
 
 Build in this order; each module passes its fixtures before the next starts.
 
-| Module | Answers | Git commands |
-| --- | --- | --- |
-| `git.ts` | Run Git safely and fast | `execFile("git", args)` with `GIT_OPTIONAL_LOCKS=0` and `LC_ALL=C` |
-| `repo.ts` | Branch, upstream, base branch | `git rev-parse --abbrev-ref HEAD`, `git rev-parse --abbrev-ref @{u}`, `git symbolic-ref refs/remotes/origin/HEAD` |
-| `status.ts` | Ahead/behind, dirty files, unpushed, stashes | `git status --porcelain=v2 --branch`, `git rev-list --left-right --count origin/main...HEAD`, `git stash list --format=%ct` |
-| `incoming.ts` | What moved on main, files, PRs | `git merge-base HEAD origin/main`, `git log --name-only <base>..origin/main`; PR numbers from `(#123)` |
-| `merge.ts` | Would a merge conflict, where | `git merge-tree --write-tree --name-only origin/main HEAD` (exit code 1 = conflicts) |
-| `rebase.ts` | Which rebase step conflicts | For each commit of `git rev-list --reverse <base>..HEAD`: `git merge-tree --write-tree --merge-base=<commit>^ <tip> <commit>`, then `git commit-tree` for the next simulated tip (Git 2.40+) |
-| `push.ts` | Force push needed? | Does the rebase rewrite commits already on `@{u}`? |
-| `recommend.ts` | Rebase or merge | `.gitforecast.json` rule first; else `git rev-list --merges --first-parent --since=90.days origin/main --count` |
-| `freshness.ts` | How stale the view is | mtime of `.git/FETCH_HEAD`; suggest `--fetch` |
+| Module         | Answers                                      | Git commands                                                                                                                                                                                 |
+| -------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git.ts`       | Run Git safely and fast                      | `execFile("git", args)` with `GIT_OPTIONAL_LOCKS=0` and `LC_ALL=C`                                                                                                                           |
+| `repo.ts`      | Branch, upstream, base branch                | `git rev-parse --abbrev-ref HEAD`, `git rev-parse --abbrev-ref @{u}`, `git symbolic-ref refs/remotes/origin/HEAD`                                                                            |
+| `status.ts`    | Ahead/behind, dirty files, unpushed, stashes | `git status --porcelain=v2 --branch`, `git rev-list --left-right --count origin/main...HEAD`, `git stash list --format=%ct`                                                                  |
+| `incoming.ts`  | What moved on main, files, PRs               | `git merge-base HEAD origin/main`, `git log --name-only <base>..origin/main`; PR numbers from `(#123)`                                                                                       |
+| `merge.ts`     | Would a merge conflict, where                | `git merge-tree --write-tree --name-only origin/main HEAD` (exit code 1 = conflicts)                                                                                                         |
+| `rebase.ts`    | Which rebase step conflicts                  | For each commit of `git rev-list --reverse <base>..HEAD`: `git merge-tree --write-tree --merge-base=<commit>^ <tip> <commit>`, then `git commit-tree` for the next simulated tip (Git 2.40+) |
+| `push.ts`      | Force push needed?                           | Does the rebase rewrite commits already on `@{u}`?                                                                                                                                           |
+| `recommend.ts` | Rebase or merge                              | `.gitforecast.json` rule first; else `git rev-list --merges --first-parent --since=90.days origin/main --count`                                                                              |
+| `freshness.ts` | How stale the view is                        | mtime of `.git/FETCH_HEAD`; suggest `--fetch`                                                                                                                                                |
 
 - Define the output types first in `core/src/types.ts`; the CLI, `--json` and later front ends depend on them.
 - Mark uncertainty: custom merge drivers in `.gitattributes`, Git LFS, rerere, and rebase steps after the first conflict.
@@ -56,14 +56,14 @@ Check: every fixture matches its expected file; speed test under 300 ms.
 
 ## Step 7: The CLI
 
-| Command or flag | Behaviour |
-| --- | --- |
-| `git forecast` | Smarter status screen (see the v0 mock) |
-| `git forecast sync` | Rebase vs merge, recommendation, then `[r] [m] [d] [q]` |
-| `--json` | The core's result as JSON, nothing else |
-| `--fetch` | Runs `git fetch` first; the only network call |
-| `--base <branch>` | Compare against another branch |
-| `--rebase` / `--merge` | Pick without the prompt |
+| Command or flag        | Behaviour                                               |
+| ---------------------- | ------------------------------------------------------- |
+| `git forecast`         | Smarter status screen (see the v0 mock)                 |
+| `git forecast sync`    | Rebase vs merge, recommendation, then `[r] [m] [d] [q]` |
+| `--json`               | The core's result as JSON, nothing else                 |
+| `--fetch`              | Runs `git fetch` first; the only network call           |
+| `--base <branch>`      | Compare against another branch                          |
+| `--rebase` / `--merge` | Pick without the prompt                                 |
 
 - Interactive only in a TTY; piped or CI → print and exit.
 - Run the chosen command through real Git with live output, then print next steps and how to back out.
