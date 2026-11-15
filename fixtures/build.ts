@@ -48,6 +48,9 @@ interface Scenario {
   /** Push the first N feature commits with `-u` before making the rest.
    *  Leave out for a branch that was never pushed (no upstream). */
   pushed?: number;
+  /** Also record what came in on main and what your side changes after a
+   *  clean merge or rebase (`incoming` and `changes` in the expected file). */
+  detail?: boolean;
 }
 
 const BASE = "origin/main";
@@ -365,6 +368,59 @@ export async function buildScenario(
 
 type Outcome = "clean" | "conflict";
 
+/** One line of `git diff --name-status -M`. `from` is set for renames and copies. */
+interface Change {
+  status: string;
+  path: string;
+  from?: string;
+}
+
+function parseNameStatus(out: string): Change[] {
+  return out
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [status = "", a = "", b] = line.split("\t");
+      return b === undefined
+        ? { status, path: a }
+        : { status, from: a, path: b };
+    });
+}
+
+/** What your side changes on top of BASE, after a clean merge or rebase. */
+async function changesVsBase(repo: string): Promise<Change[]> {
+  return parseNameStatus(
+    await git(repo, ["diff", "-M", "--name-status", BASE, "HEAD"]),
+  );
+}
+
+/** Commits that came in on BASE since you branched, with the files each changed. */
+async function incomingCommits(
+  work: string,
+): Promise<NonNullable<Expected["incoming"]>> {
+  const mergeBase = await git(work, ["merge-base", BASE, BRANCH]);
+  const out = await git(work, [
+    "log",
+    "--reverse",
+    "-M",
+    "--name-status",
+    "--format=%x00%s",
+    `${mergeBase}..${BASE}`,
+  ]);
+  return out
+    .split("\0")
+    .filter(Boolean)
+    .map((record) => {
+      const [subject = "", ...rest] = record.trim().split("\n");
+      return { subject, files: parseNameStatus(rest.join("\n")) };
+    });
+}
+
+interface JudgeOptions {
+  hasUpstream: boolean;
+  detail: boolean;
+}
+
 export interface Expected {
   scenario: string;
   description: string;
@@ -374,9 +430,13 @@ export interface Expected {
   behind: number;
   /** Only when the branch has an upstream. Counts are relative to it. */
   upstream?: { name: string; ahead: number; behind: number };
+  /** Detail scenarios only: commits on BASE since the merge base, oldest first. */
+  incoming?: { subject: string; files: Change[] }[];
   merge: {
     outcome: Outcome;
     conflictedFiles?: string[];
+    /** Detail scenarios only, after a clean merge: HEAD vs BASE. */
+    changes?: Change[];
     /** Upstream only, after a clean merge: was a plain push rejected? */
     needsForcePush?: boolean;
   };
@@ -387,6 +447,8 @@ export interface Expected {
     stoppedAtStep?: number;
     stoppedAtCommit?: string;
     conflictedFiles?: string[];
+    /** Detail scenarios only, after a clean rebase: HEAD vs BASE. */
+    changes?: Change[];
     /** Upstream only, after a clean rebase: pushed commits no longer in HEAD. */
     rewritesPushedCommits?: number;
     /** Upstream only, after a clean rebase: was a plain push rejected? */
@@ -431,7 +493,7 @@ async function hasUnmergedEntries(repo: string): Promise<boolean> {
 
 async function judgeRebase(
   repo: string,
-  hasUpstream: boolean,
+  { hasUpstream, detail }: JudgeOptions,
 ): Promise<Expected["rebase"]> {
   const result = await run(repo, ["rebase", BASE], makeClock()());
   if (result.code === 0) {
@@ -440,6 +502,7 @@ async function judgeRebase(
       outcome: "clean",
       totalSteps: Number(count),
     };
+    if (detail) clean.changes = await changesVsBase(repo);
     if (hasUpstream) {
       const rewritten = await git(repo, ["rev-list", "--count", "HEAD..@{u}"]);
       clean.rewritesPushedCommits = Number(rewritten);
@@ -476,12 +539,14 @@ async function judgeRebase(
 
 async function judgeMerge(
   repo: string,
-  hasUpstream: boolean,
+  { hasUpstream, detail }: JudgeOptions,
 ): Promise<Expected["merge"]> {
   const result = await run(repo, ["merge", "--no-edit", BASE], makeClock()());
   if (result.code === 0) {
-    if (!hasUpstream) return { outcome: "clean" };
-    return { outcome: "clean", needsForcePush: await judgePush(repo) };
+    const clean: Expected["merge"] = { outcome: "clean" };
+    if (detail) clean.changes = await changesVsBase(repo);
+    if (hasUpstream) clean.needsForcePush = await judgePush(repo);
+    return clean;
   }
   if (result.code === 1 && (await hasUnmergedEntries(repo))) {
     return {
@@ -527,6 +592,15 @@ export async function judge(name: string, work: string): Promise<Expected> {
   const u = await run(work, ["rev-parse", "--abbrev-ref", "@{u}"]);
   const upstreamName = u.code === 0 ? u.stdout.trim() : undefined;
   const hasUpstream = upstreamName !== undefined;
+  const options: JudgeOptions = {
+    hasUpstream,
+    detail: scenario.detail === true,
+  };
+  let upstream: Expected["upstream"];
+  if (upstreamName !== undefined) {
+    const [uBehind, uAhead] = await leftRight(work, "@{u}...HEAD");
+    upstream = { name: upstreamName, ahead: uAhead, behind: uBehind };
+  }
 
   const scratch = await mkdtemp(path.join(os.tmpdir(), "git-forecast-judge-"));
   try {
@@ -540,28 +614,19 @@ export async function judge(name: string, work: string): Promise<Expected> {
       path.join(scratch, "merge"),
       hasUpstream,
     );
-    const expected: Expected = {
+    // Optional fields are spread in place so the JSON reads top-down.
+    return {
       scenario: name,
       description: scenario.description,
       branch: BRANCH,
       base: BASE,
       ahead,
       behind,
-      merge: await judgeMerge(mergeCopy, hasUpstream),
-      rebase: await judgeRebase(rebaseCopy, hasUpstream),
+      ...(upstream ? { upstream } : {}),
+      ...(options.detail ? { incoming: await incomingCommits(work) } : {}),
+      merge: await judgeMerge(mergeCopy, options),
+      rebase: await judgeRebase(rebaseCopy, options),
     };
-    if (upstreamName !== undefined) {
-      const [uBehind, uAhead] = await leftRight(work, "@{u}...HEAD");
-      // Insert before merge/rebase so the JSON reads top-down.
-      const { merge, rebase, ...head } = expected;
-      return {
-        ...head,
-        upstream: { name: upstreamName, ahead: uAhead, behind: uBehind },
-        merge,
-        rebase,
-      };
-    }
-    return expected;
   } finally {
     await rm(scratch, { recursive: true, force: true, maxRetries: 5 });
   }
