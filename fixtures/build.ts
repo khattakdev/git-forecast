@@ -34,6 +34,8 @@ type Files = Record<string, string>;
 interface Commit {
   subject: string;
   files: Files;
+  /** Old path → new path, done with `git mv` before `files` are written. */
+  renames?: Record<string, string>;
 }
 
 interface Scenario {
@@ -207,6 +209,47 @@ export const scenarios: Scenario[] = [
     ],
     detail: true,
   },
+  {
+    name: "rename",
+    description: "main renames a file you edited",
+    base: {
+      "README.md": lines("# rename fixture"),
+      "config.txt": lines(
+        "name = demo",
+        "port = 8080",
+        "debug = false",
+        "timeout = 30",
+        "retries = 3",
+        "log = info",
+      ),
+    },
+    // A pure rename on main (100% similar), so Git's rename detection should
+    // carry your edit over to the new path. `changes` shows where it landed.
+    incoming: [
+      {
+        subject: "Move config to src/settings.txt",
+        files: {},
+        renames: { "config.txt": "src/settings.txt" },
+      },
+    ],
+    feature: [
+      {
+        subject: "Change port",
+        files: {
+          "config.txt": lines(
+            "name = demo",
+            "port = 9090",
+            "debug = false",
+            "timeout = 30",
+            "retries = 3",
+            "log = info",
+          ),
+        },
+      },
+      { subject: "Add x", files: { "x.txt": lines("x") } },
+    ],
+    detail: true,
+  },
 ];
 
 /** Ten lines with `greeting` on line 5, so both sides edit the same line. */
@@ -324,9 +367,15 @@ async function writeFiles(repo: string, files: Files): Promise<void> {
 
 async function commit(
   repo: string,
-  { subject, files }: Commit,
+  { subject, files, renames = {} }: Commit,
   clock: () => NodeJS.ProcessEnv,
 ): Promise<void> {
+  for (const [from, to] of Object.entries(renames)) {
+    await mkdir(path.dirname(path.join(repo, ...to.split("/"))), {
+      recursive: true,
+    });
+    await git(repo, ["mv", from, to]);
+  }
   await writeFiles(repo, files);
   await git(repo, ["add", "--all"]);
   await git(repo, ["commit", "--quiet", "-m", subject], clock());
