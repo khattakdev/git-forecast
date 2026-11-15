@@ -43,9 +43,15 @@ interface Scenario {
   base: Files;
   /** Pushed to origin/main by a teammate after the base. */
   incoming: Commit[];
-  /** Your commits on `feature`, branched from the base. Not pushed. */
+  /** Your commits on `feature`, branched from the base. */
   feature: Commit[];
+  /** Push the first N feature commits with `-u` before making the rest.
+   *  Leave out for a branch that was never pushed (no upstream). */
+  pushed?: number;
 }
+
+const BASE = "origin/main";
+const BRANCH = "feature";
 
 const lines = (...l: string[]): string => `${l.join("\n")}\n`;
 
@@ -273,6 +279,10 @@ async function clone(origin: string, dir: string): Promise<void> {
   }
 }
 
+async function pushBranch(work: string): Promise<void> {
+  await git(work, ["push", "--quiet", "-u", "origin", BRANCH]);
+}
+
 function findScenario(name: string): Scenario {
   const scenario = scenarios.find((s) => s.name === name);
   if (!scenario) throw new Error(`Unknown scenario "${name}"`);
@@ -311,8 +321,12 @@ export async function buildScenario(
   for (const c of scenario.incoming) await commit(teammate, c, clock);
   await git(teammate, ["push", "--quiet", "origin", "main"]);
 
-  await git(work, ["switch", "--quiet", "-c", "feature"]);
-  for (const c of scenario.feature) await commit(work, c, clock);
+  await git(work, ["switch", "--quiet", "-c", BRANCH]);
+  for (const [i, c] of scenario.feature.entries()) {
+    if (i === scenario.pushed) await pushBranch(work);
+    await commit(work, c, clock);
+  }
+  if (scenario.pushed === scenario.feature.length) await pushBranch(work);
   await git(work, ["fetch", "--quiet", "origin"]);
 
   return work;
@@ -320,9 +334,6 @@ export async function buildScenario(
 
 // ---------------------------------------------------------------------------
 // The judge: real Git, on a throwaway copy
-
-const BASE = "origin/main";
-const BRANCH = "feature";
 
 type Outcome = "clean" | "conflict";
 
@@ -333,7 +344,14 @@ export interface Expected {
   base: string;
   ahead: number;
   behind: number;
-  merge: { outcome: Outcome; conflictedFiles?: string[] };
+  /** Only when the branch has an upstream. Counts are relative to it. */
+  upstream?: { name: string; ahead: number; behind: number };
+  merge: {
+    outcome: Outcome;
+    conflictedFiles?: string[];
+    /** Upstream only, after a clean merge: was a plain push rejected? */
+    needsForcePush?: boolean;
+  };
   rebase: {
     outcome: Outcome;
     /** Commits real Git replayed (clean) or planned to replay (conflict). */
@@ -341,7 +359,37 @@ export interface Expected {
     stoppedAtStep?: number;
     stoppedAtCommit?: string;
     conflictedFiles?: string[];
+    /** Upstream only, after a clean rebase: pushed commits no longer in HEAD. */
+    rewritesPushedCommits?: number;
+    /** Upstream only, after a clean rebase: was a plain push rejected? */
+    needsForcePush?: boolean;
   };
+}
+
+async function leftRight(
+  repo: string,
+  range: string,
+): Promise<[number, number]> {
+  const out = await git(repo, ["rev-list", "--left-right", "--count", range]);
+  const [left, right] = out.split(/\s+/).map(Number);
+  return [left ?? 0, right ?? 0];
+}
+
+/**
+ * Pushes `feature` for real, to the copy's own origin, and reports whether
+ * Git refused it as a non-fast-forward (the case that needs a force push).
+ * `--porcelain` prints `<flag>\t<from>:<to>\t<summary>`; `!` means rejected.
+ */
+async function judgePush(repo: string): Promise<boolean> {
+  const result = await run(repo, ["push", "--porcelain", "origin", BRANCH]);
+  const ref = `refs/heads/${BRANCH}:refs/heads/${BRANCH}`;
+  const line = result.stdout.split("\n").find((l) => l.includes(ref));
+  const flag = line?.[0];
+  if (result.code === 0 && (flag === " " || flag === "=")) return false;
+  if (flag === "!" && line?.includes("(non-fast-forward)")) return true;
+  throw new Error(
+    `git push gave an unexpected result in ${repo}\n${result.stdout}${result.stderr}`,
+  );
 }
 
 async function conflictedFiles(repo: string): Promise<string[]> {
@@ -353,11 +401,23 @@ async function hasUnmergedEntries(repo: string): Promise<boolean> {
   return (await git(repo, ["ls-files", "--unmerged"])) !== "";
 }
 
-async function judgeRebase(repo: string): Promise<Expected["rebase"]> {
+async function judgeRebase(
+  repo: string,
+  hasUpstream: boolean,
+): Promise<Expected["rebase"]> {
   const result = await run(repo, ["rebase", BASE], makeClock()());
   if (result.code === 0) {
     const count = await git(repo, ["rev-list", "--count", `${BASE}..HEAD`]);
-    return { outcome: "clean", totalSteps: Number(count) };
+    const clean: Expected["rebase"] = {
+      outcome: "clean",
+      totalSteps: Number(count),
+    };
+    if (hasUpstream) {
+      const rewritten = await git(repo, ["rev-list", "--count", "HEAD..@{u}"]);
+      clean.rewritesPushedCommits = Number(rewritten);
+      clean.needsForcePush = await judgePush(repo);
+    }
+    return clean;
   }
 
   // Stopped. Make sure it stopped on a conflict, not on something else.
@@ -386,9 +446,15 @@ async function judgeRebase(repo: string): Promise<Expected["rebase"]> {
   };
 }
 
-async function judgeMerge(repo: string): Promise<Expected["merge"]> {
+async function judgeMerge(
+  repo: string,
+  hasUpstream: boolean,
+): Promise<Expected["merge"]> {
   const result = await run(repo, ["merge", "--no-edit", BASE], makeClock()());
-  if (result.code === 0) return { outcome: "clean" };
+  if (result.code === 0) {
+    if (!hasUpstream) return { outcome: "clean" };
+    return { outcome: "clean", needsForcePush: await judgePush(repo) };
+  }
   if (result.code === 1 && (await hasUnmergedEntries(repo))) {
     return {
       outcome: "conflict",
@@ -400,6 +466,28 @@ async function judgeMerge(repo: string): Promise<Expected["merge"]> {
   );
 }
 
+/**
+ * Copies `work` into `<dest>/work`. When the branch has an upstream, also
+ * copies `origin.git` and points the copy's origin at it, so the judge can
+ * really push without touching the fixture.
+ */
+async function copyForJudge(
+  work: string,
+  dest: string,
+  withOrigin: boolean,
+): Promise<string> {
+  const copy = path.join(dest, "work");
+  await cp(work, copy, { recursive: true });
+  if (withOrigin) {
+    const origin = path.join(dest, "origin.git");
+    await cp(path.join(path.dirname(work), "origin.git"), origin, {
+      recursive: true,
+    });
+    await git(copy, ["remote", "set-url", "origin", origin]);
+  }
+  return copy;
+}
+
 /** Copies `work` twice, runs real `git rebase` and `git merge`, records what happened. */
 export async function judge(name: string, work: string): Promise<Expected> {
   const scenario = findScenario(name);
@@ -407,30 +495,45 @@ export async function judge(name: string, work: string): Promise<Expected> {
   if (current !== BRANCH)
     throw new Error(`${work} is on "${current}", expected "${BRANCH}"`);
 
-  const counts = await git(work, [
-    "rev-list",
-    "--left-right",
-    "--count",
-    `${BASE}...${BRANCH}`,
-  ]);
-  const [behind, ahead] = counts.split(/\s+/).map(Number);
+  const [behind, ahead] = await leftRight(work, `${BASE}...${BRANCH}`);
+  const u = await run(work, ["rev-parse", "--abbrev-ref", "@{u}"]);
+  const upstreamName = u.code === 0 ? u.stdout.trim() : undefined;
+  const hasUpstream = upstreamName !== undefined;
 
   const scratch = await mkdtemp(path.join(os.tmpdir(), "git-forecast-judge-"));
   try {
-    const rebaseCopy = path.join(scratch, "rebase");
-    const mergeCopy = path.join(scratch, "merge");
-    await cp(work, rebaseCopy, { recursive: true });
-    await cp(work, mergeCopy, { recursive: true });
-    return {
+    const rebaseCopy = await copyForJudge(
+      work,
+      path.join(scratch, "rebase"),
+      hasUpstream,
+    );
+    const mergeCopy = await copyForJudge(
+      work,
+      path.join(scratch, "merge"),
+      hasUpstream,
+    );
+    const expected: Expected = {
       scenario: name,
       description: scenario.description,
       branch: BRANCH,
       base: BASE,
-      ahead: ahead ?? 0,
-      behind: behind ?? 0,
-      merge: await judgeMerge(mergeCopy),
-      rebase: await judgeRebase(rebaseCopy),
+      ahead,
+      behind,
+      merge: await judgeMerge(mergeCopy, hasUpstream),
+      rebase: await judgeRebase(rebaseCopy, hasUpstream),
     };
+    if (upstreamName !== undefined) {
+      const [uBehind, uAhead] = await leftRight(work, "@{u}...HEAD");
+      // Insert before merge/rebase so the JSON reads top-down.
+      const { merge, rebase, ...head } = expected;
+      return {
+        ...head,
+        upstream: { name: upstreamName, ahead: uAhead, behind: uBehind },
+        merge,
+        rebase,
+      };
+    }
+    return expected;
   } finally {
     await rm(scratch, { recursive: true, force: true, maxRetries: 5 });
   }
