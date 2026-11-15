@@ -15,7 +15,15 @@
 // needs extra isolation (no user or system config) that the engine must not have.
 
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -53,6 +61,14 @@ interface Scenario {
   /** Also record what came in on main and what your side changes after a
    *  clean merge or rebase (`incoming` and `changes` in the expected file). */
   detail?: boolean;
+  /** Uncommitted state made after the commits: stashes first (each saved
+   *  with `git stash push` at its own fixed date), then edits to tracked
+   *  files left unstaged, then new untracked files. */
+  local?: {
+    stashes?: { message: string; date: number; files: Files }[];
+    unstaged?: Files;
+    untracked?: Files;
+  };
 }
 
 const BASE = "origin/main";
@@ -445,13 +461,25 @@ export async function buildScenario(
   if (scenario.pushed === scenario.feature.length) await pushBranch(work);
   await git(work, ["fetch", "--quiet", "origin"]);
 
+  for (const stash of scenario.local?.stashes ?? []) {
+    await writeFiles(work, stash.files);
+    const date = `${stash.date} +0000`;
+    await git(work, ["stash", "push", "--quiet", "-m", stash.message], {
+      GIT_AUTHOR_DATE: date,
+      GIT_COMMITTER_DATE: date,
+    });
+  }
+  await writeFiles(work, scenario.local?.unstaged ?? {});
+  await writeFiles(work, scenario.local?.untracked ?? {});
+
   return work;
 }
 
 // ---------------------------------------------------------------------------
 // The judge: real Git, on a throwaway copy
 
-type Outcome = "clean" | "conflict";
+/** "refused": Git declined to start and left the repo exactly as it was. */
+type Outcome = "clean" | "conflict" | "refused";
 
 /** One line of `git diff --name-status -M`. `from` is set for renames and copies. */
 interface Change {
@@ -517,28 +545,42 @@ export interface Expected {
   upstream?: { name: string; ahead: number; behind: number };
   /** Detail scenarios only: commits on BASE since the merge base, oldest first. */
   incoming?: { subject: string; files: Change[] }[];
-  merge: {
-    outcome: Outcome;
-    conflictedFiles?: string[];
-    /** Detail scenarios only, after a clean merge: HEAD vs BASE. */
-    changes?: Change[];
-    /** Upstream only, after a clean merge: was a plain push rejected? */
-    needsForcePush?: boolean;
-  };
-  rebase: {
-    outcome: Outcome;
-    /** Commits real Git replayed (clean) or planned to replay (conflict). */
-    totalSteps: number;
-    stoppedAtStep?: number;
-    stoppedAtCommit?: string;
-    conflictedFiles?: string[];
-    /** Detail scenarios only, after a clean rebase: HEAD vs BASE. */
-    changes?: Change[];
-    /** Upstream only, after a clean rebase: pushed commits no longer in HEAD. */
-    rewritesPushedCommits?: number;
-    /** Upstream only, after a clean rebase: was a plain push rejected? */
-    needsForcePush?: boolean;
-  };
+  /** Scenarios with local state only: uncommitted files as Git sees them. */
+  local?: { staged: string[]; unstaged: string[]; untracked: string[] };
+  /** Scenarios with local state only: `git stash list`, newest first. */
+  stashes?: { subject: string; time: number }[];
+  merge: MergeResult;
+  rebase: RebaseResult;
+  /** Scenarios with local state only: merge and rebase again after
+   *  `git stash push --include-untracked`, i.e. judged on commits alone. */
+  ifStashed?: { merge: MergeResult; rebase: RebaseResult };
+}
+
+interface MergeResult {
+  outcome: Outcome;
+  conflictedFiles?: string[];
+  /** Refused only: the files Git listed as in the way. */
+  blockedBy?: string[];
+  /** Detail scenarios only, after a clean merge: HEAD vs BASE. */
+  changes?: Change[];
+  /** Upstream only, after a clean merge: was a plain push rejected? */
+  needsForcePush?: boolean;
+}
+
+interface RebaseResult {
+  outcome: Outcome;
+  /** Commits real Git replayed (clean) or planned to replay (conflict).
+   *  Absent when refused. */
+  totalSteps?: number;
+  stoppedAtStep?: number;
+  stoppedAtCommit?: string;
+  conflictedFiles?: string[];
+  /** Detail scenarios only, after a clean rebase: HEAD vs BASE. */
+  changes?: Change[];
+  /** Upstream only, after a clean rebase: pushed commits no longer in HEAD. */
+  rewritesPushedCommits?: number;
+  /** Upstream only, after a clean rebase: was a plain push rejected? */
+  needsForcePush?: boolean;
 }
 
 async function leftRight(
@@ -576,14 +618,70 @@ async function hasUnmergedEntries(repo: string): Promise<boolean> {
   return (await git(repo, ["ls-files", "--unmerged"])) !== "";
 }
 
+/** True when Git left no trace: HEAD unchanged, no merge or rebase in
+ *  progress, no unmerged files. Anything else is not a clean refusal. */
+async function refusedCleanly(
+  repo: string,
+  headBefore: string,
+): Promise<boolean> {
+  if ((await git(repo, ["rev-parse", "HEAD"])) !== headBefore) return false;
+  if (
+    (await run(repo, ["rev-parse", "-q", "--verify", "MERGE_HEAD"])).code === 0
+  )
+    return false;
+  for (const dir of ["rebase-merge", "rebase-apply"]) {
+    const p = path.resolve(
+      repo,
+      await git(repo, ["rev-parse", "--git-path", dir]),
+    );
+    if (
+      await access(p).then(
+        () => true,
+        () => false,
+      )
+    )
+      return false;
+  }
+  return !(await hasUnmergedEntries(repo));
+}
+
+const nameList = (out: string): string[] =>
+  out.split("\n").filter(Boolean).sort();
+
+async function localState(
+  work: string,
+): Promise<NonNullable<Expected["local"]>> {
+  return {
+    staged: nameList(await git(work, ["diff", "--cached", "--name-only"])),
+    unstaged: nameList(await git(work, ["diff", "--name-only"])),
+    untracked: nameList(
+      await git(work, ["ls-files", "--others", "--exclude-standard"]),
+    ),
+  };
+}
+
+async function stashList(
+  work: string,
+): Promise<NonNullable<Expected["stashes"]>> {
+  const out = await git(work, ["stash", "list", "--format=%ct%x09%gs"]);
+  return out
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [time = "", ...subject] = line.split("\t");
+      return { subject: subject.join("\t"), time: Number(time) };
+    });
+}
+
 async function judgeRebase(
   repo: string,
   { hasUpstream, detail }: JudgeOptions,
-): Promise<Expected["rebase"]> {
+): Promise<RebaseResult> {
+  const headBefore = await git(repo, ["rev-parse", "HEAD"]);
   const result = await run(repo, ["rebase", BASE], makeClock()());
   if (result.code === 0) {
     const count = await git(repo, ["rev-list", "--count", `${BASE}..HEAD`]);
-    const clean: Expected["rebase"] = {
+    const clean: RebaseResult = {
       outcome: "clean",
       totalSteps: Number(count),
     };
@@ -595,6 +693,8 @@ async function judgeRebase(
     }
     return clean;
   }
+
+  if (await refusedCleanly(repo, headBefore)) return { outcome: "refused" };
 
   // Stopped. Make sure it stopped on a conflict, not on something else.
   const stateDir = path.resolve(
@@ -625,10 +725,11 @@ async function judgeRebase(
 async function judgeMerge(
   repo: string,
   { hasUpstream, detail }: JudgeOptions,
-): Promise<Expected["merge"]> {
+): Promise<MergeResult> {
+  const headBefore = await git(repo, ["rev-parse", "HEAD"]);
   const result = await run(repo, ["merge", "--no-edit", BASE], makeClock()());
   if (result.code === 0) {
-    const clean: Expected["merge"] = { outcome: "clean" };
+    const clean: MergeResult = { outcome: "clean" };
     if (detail) clean.changes = await changesVsBase(repo);
     if (hasUpstream) clean.needsForcePush = await judgePush(repo);
     return clean;
@@ -638,6 +739,16 @@ async function judgeMerge(
       outcome: "conflict",
       conflictedFiles: await conflictedFiles(repo),
     };
+  }
+  if (await refusedCleanly(repo, headBefore)) {
+    // Git lists the files in its way as indented lines. Only the list is
+    // recorded, never the wording, which can change between Git versions.
+    const blockedBy = result.stderr
+      .split("\n")
+      .filter((line) => /^\s+\S/.test(line))
+      .map((line) => line.trim())
+      .sort();
+    if (blockedBy.length > 0) return { outcome: "refused", blockedBy };
   }
   throw new Error(
     `git merge failed without a conflict in ${repo}\n${result.stderr}`,
@@ -699,6 +810,29 @@ export async function judge(name: string, work: string): Promise<Expected> {
       path.join(scratch, "merge"),
       hasUpstream,
     );
+    const hasLocal = scenario.local !== undefined;
+    let ifStashed: Expected["ifStashed"];
+    if (hasLocal) {
+      const copies = [];
+      for (const kind of ["stashed-merge", "stashed-rebase"]) {
+        const copy = await copyForJudge(
+          work,
+          path.join(scratch, kind),
+          hasUpstream,
+        );
+        await git(
+          copy,
+          ["stash", "push", "--quiet", "--include-untracked", "-m", "judge"],
+          makeClock()(),
+        );
+        copies.push(copy);
+      }
+      const [m = "", r = ""] = copies;
+      ifStashed = {
+        merge: await judgeMerge(m, options),
+        rebase: await judgeRebase(r, options),
+      };
+    }
     // Optional fields are spread in place so the JSON reads top-down.
     return {
       scenario: name,
@@ -709,8 +843,12 @@ export async function judge(name: string, work: string): Promise<Expected> {
       behind,
       ...(upstream ? { upstream } : {}),
       ...(options.detail ? { incoming: await incomingCommits(work) } : {}),
+      ...(hasLocal
+        ? { local: await localState(work), stashes: await stashList(work) }
+        : {}),
       merge: await judgeMerge(mergeCopy, options),
       rebase: await judgeRebase(rebaseCopy, options),
+      ...(ifStashed ? { ifStashed } : {}),
     };
   } finally {
     await rm(scratch, { recursive: true, force: true, maxRetries: 5 });
