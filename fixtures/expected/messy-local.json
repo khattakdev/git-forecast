@@ -1,0 +1,54 @@
+{
+  "scenario": "messy-local",
+  "description": "uncommitted changes, unpushed commits, old stashes",
+  "branch": "feature",
+  "base": "origin/main",
+  "ahead": 2,
+  "behind": 1,
+  "upstream": {
+    "name": "origin/feature",
+    "ahead": 1,
+    "behind": 0
+  },
+  "local": {
+    "staged": [],
+    "unstaged": [
+      "notes.txt",
+      "src/b.txt"
+    ],
+    "untracked": [
+      "scratch.txt"
+    ]
+  },
+  "stashes": [
+    {
+      "subject": "On feature: wip a",
+      "time": 1767225600
+    },
+    {
+      "subject": "On feature: old experiment",
+      "time": 1748736000
+    }
+  ],
+  "merge": {
+    "outcome": "refused",
+    "blockedBy": [
+      "src/b.txt"
+    ]
+  },
+  "rebase": {
+    "outcome": "refused"
+  },
+  "ifStashed": {
+    "merge": {
+      "outcome": "clean",
+      "needsForcePush": false
+    },
+    "rebase": {
+      "outcome": "clean",
+      "totalSteps": 2,
+      "rewritesPushedCommits": 1,
+      "needsForcePush": true
+    }
+  }
+}

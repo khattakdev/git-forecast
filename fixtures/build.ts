@@ -266,6 +266,58 @@ export const scenarios: Scenario[] = [
     ],
     detail: true,
   },
+  {
+    name: "messy-local",
+    description: "uncommitted changes, unpushed commits, old stashes",
+    base: {
+      "README.md": lines("# messy-local fixture"),
+      "notes.txt": lines("notes"),
+      "src/a.txt": lines("alpha 1", "alpha 2", "alpha 3"),
+      "src/b.txt": lines("bravo 1", "bravo 2", "bravo 3"),
+    },
+    incoming: [
+      {
+        subject: "Update b",
+        files: { "src/b.txt": lines("bravo 1", "bravo 2 (main)", "bravo 3") },
+      },
+    ],
+    // Commits never touch src/b.txt, so judged on commits alone (ifStashed)
+    // everything is clean. The uncommitted edit to src/b.txt overlaps main,
+    // so merge refuses; the notes.txt edit alone would not stop a merge.
+    // Nothing is staged: a staged file makes merge refuse on that file alone
+    // and would hide the overlap rule.
+    feature: [
+      {
+        subject: "Edit a",
+        files: {
+          "src/a.txt": lines("alpha 1", "alpha 2 (feature)", "alpha 3"),
+        },
+      },
+      { subject: "Add d", files: { "src/d.txt": lines("delta") } },
+    ],
+    pushed: 1,
+    local: {
+      stashes: [
+        {
+          message: "old experiment",
+          date: 1748736000, // 2025-06-01T00:00:00Z
+          files: { "notes.txt": lines("notes", "experiment") },
+        },
+        {
+          message: "wip a",
+          date: 1767225600, // 2026-01-01T00:00:00Z
+          files: {
+            "src/a.txt": lines("alpha 1", "alpha 2 (feature)", "alpha 3 wip"),
+          },
+        },
+      ],
+      unstaged: {
+        "src/b.txt": lines("bravo 1", "bravo 2", "bravo 3 (local)"),
+        "notes.txt": lines("notes", "local edit"),
+      },
+      untracked: { "scratch.txt": lines("scratch") },
+    },
+  },
 ];
 
 /** Ten lines with `greeting` on line 5, so both sides edit the same line. */
