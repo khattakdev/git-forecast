@@ -20,15 +20,15 @@ Not for: people learning Git (git-sim serves them better), or teams on tiny bran
 
 ## v0 (mid-January 2027)
 
-| Feature | What it does |
-| --- | --- |
+| Feature                            | What it does                                                                                                                                                        |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Core engine (`@git-forecast/core`) | Reads branches, upstreams and history; simulates rebase commit by commit and merge with `git merge-tree`; detects rewrites and force-push needs; returns plain data |
-| `git forecast` | Everything `git status` shows, plus how far main moved, which files will conflict, unpushed commits, old stashes |
-| `git forecast sync` | Rebase vs merge side by side (conflicts, commits rewritten, force push, history shape); recommends one, then runs the pick |
-| Repo config | `.gitforecast.json` with the team's rule, e.g. `{ "sync": "rebase" }` |
-| Output | Colored, `NO_COLOR`- and pipe-safe; `--json` on every command |
-| Tests | Fixture repos with known conflicts, squash merges, renames |
-| Release | README, demo GIF, npm publish |
+| `git forecast`                     | Everything `git status` shows, plus how far main moved, which files will conflict, unpushed commits, old stashes                                                    |
+| `git forecast sync`                | Rebase vs merge side by side (conflicts, commits rewritten, force push, history shape); recommends one, then runs the pick                                          |
+| Repo config                        | `.gitforecast.json` with the team's rule, e.g. `{ "sync": "rebase" }`                                                                                               |
+| Output                             | Colored, `NO_COLOR`- and pipe-safe; `--json` on every command                                                                                                       |
+| Tests                              | Fixture repos with known conflicts, squash merges, renames                                                                                                          |
+| Release                            | README, demo GIF, npm publish                                                                                                                                       |
 
 Requirements: Node 22+, Git 2.40+ (older Git skips rebase-step checks and says so), macOS, Linux, Windows.
 
@@ -36,14 +36,14 @@ Done means: correct results on every fixture repo; `git forecast` under 300 ms o
 
 ## v1 (end of February 2027), one small release per feature
 
-| Feature | What it does |
-| --- | --- |
-| `undo` | Reads the reflog, names the last action (commit, amend, merge, rebase, reset, pull), previews the undo, runs it on confirm; offers `git revert` for anything pushed; `--list` shows the last 10 |
-| Prompt segment | Starship / oh-my-zsh segment like `↓14 ⚠1`, from a cached result |
-| `tidy` | Branches safe to delete, including squash-merged ones `git branch --merged` misses |
-| Guard mode | Shell hook that checks destructive Git commands and stays silent unless something would be lost |
-| `--graph` | Before/after commit graphs in the terminal, plain text from core data |
-| GitHub awareness | Optional, via the `gh` CLI login: knows when a PR is open |
+| Feature          | What it does                                                                                                                                                                                    |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `undo`           | Reads the reflog, names the last action (commit, amend, merge, rebase, reset, pull), previews the undo, runs it on confirm; offers `git revert` for anything pushed; `--list` shows the last 10 |
+| Prompt segment   | Starship / oh-my-zsh segment like `↓14 ⚠1`, from a cached result                                                                                                                                |
+| `tidy`           | Branches safe to delete, including squash-merged ones `git branch --merged` misses                                                                                                              |
+| Guard mode       | Shell hook that checks destructive Git commands and stays silent unless something would be lost                                                                                                 |
+| `--graph`        | Before/after commit graphs in the terminal, plain text from core data                                                                                                                           |
+| GitHub awareness | Optional, via the `gh` CLI login: knows when a PR is open                                                                                                                                       |
 
 ## Not planned for v0 or v1
 
@@ -66,13 +66,13 @@ From Jacob Stopak's retrospective (https://initialcommit.com/blog/git-sim-mistak
 
 ## Risks
 
-| Risk | Handling |
-| --- | --- |
-| Wrong prediction | Fixture tests per edge case; "uncertain" for renames, merge drivers, LFS, rerere |
-| Too slow for daily use or a prompt | 300 ms target; cache for the prompt; spawn Git directly |
-| Windows quirks | CI on Windows from the first commit; LF line endings |
-| Scope creep | Fixed lists per version; new ideas go to issues |
-| Seen as a git-sim copy | Goals-first, terminal-first, credited openly |
+| Risk                               | Handling                                                                         |
+| ---------------------------------- | -------------------------------------------------------------------------------- |
+| Wrong prediction                   | Fixture tests per edge case; "uncertain" for renames, merge drivers, LFS, rerere |
+| Too slow for daily use or a prompt | 300 ms target; cache for the prompt; spawn Git directly                          |
+| Windows quirks                     | CI on Windows from the first commit; LF line endings                             |
+| Scope creep                        | Fixed lists per version; new ideas go to issues                                  |
+| Seen as a git-sim copy             | Goals-first, terminal-first, credited openly                                     |
 
 ## Open decisions
 

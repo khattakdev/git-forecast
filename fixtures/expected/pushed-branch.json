@@ -1,0 +1,23 @@
+{
+  "scenario": "pushed-branch",
+  "description": "your branch is already pushed (origin/feature), so rebase means a force push",
+  "branch": "feature",
+  "base": "origin/main",
+  "ahead": 3,
+  "behind": 1,
+  "upstream": {
+    "name": "origin/feature",
+    "ahead": 1,
+    "behind": 0
+  },
+  "merge": {
+    "outcome": "clean",
+    "needsForcePush": false
+  },
+  "rebase": {
+    "outcome": "clean",
+    "totalSteps": 3,
+    "rewritesPushedCommits": 2,
+    "needsForcePush": true
+  }
+}

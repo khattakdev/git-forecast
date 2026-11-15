@@ -27,5 +27,7 @@ jobs:
       - run: npm run build
       - run: npm run typecheck
       - run: npm test
+      - name: Fixtures still match real Git
+        run: npm run fixtures -- --check
       - name: Smoke test the CLI
         run: node packages/cli/dist/cli.js --version

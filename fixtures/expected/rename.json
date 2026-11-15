@@ -1,0 +1,47 @@
+{
+  "scenario": "rename",
+  "description": "main renames a file you edited",
+  "branch": "feature",
+  "base": "origin/main",
+  "ahead": 2,
+  "behind": 1,
+  "incoming": [
+    {
+      "subject": "Move config to src/settings.txt",
+      "files": [
+        {
+          "status": "R100",
+          "from": "config.txt",
+          "path": "src/settings.txt"
+        }
+      ]
+    }
+  ],
+  "merge": {
+    "outcome": "clean",
+    "changes": [
+      {
+        "status": "M",
+        "path": "src/settings.txt"
+      },
+      {
+        "status": "A",
+        "path": "x.txt"
+      }
+    ]
+  },
+  "rebase": {
+    "outcome": "clean",
+    "totalSteps": 2,
+    "changes": [
+      {
+        "status": "M",
+        "path": "src/settings.txt"
+      },
+      {
+        "status": "A",
+        "path": "x.txt"
+      }
+    ]
+  }
+}

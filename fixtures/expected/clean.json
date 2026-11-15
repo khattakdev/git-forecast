@@ -1,0 +1,15 @@
+{
+  "scenario": "clean",
+  "description": "main moved, no files overlap",
+  "branch": "feature",
+  "base": "origin/main",
+  "ahead": 2,
+  "behind": 2,
+  "merge": {
+    "outcome": "clean"
+  },
+  "rebase": {
+    "outcome": "clean",
+    "totalSteps": 2
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "scenario": "squash-prs",
+  "description": "main has squash-merged PRs with (#123) in their subjects",
+  "branch": "feature",
+  "base": "origin/main",
+  "ahead": 2,
+  "behind": 4,
+  "incoming": [
+    {
+      "subject": "Add login page (#12)",
+      "files": [
+        {
+          "status": "M",
+          "path": "src/login.txt"
+        }
+      ]
+    },
+    {
+      "subject": "Explain #7 in README (#15)",
+      "files": [
+        {
+          "status": "M",
+          "path": "README.md"
+        }
+      ]
+    },
+    {
+      "subject": "Bump version",
+      "files": [
+        {
+          "status": "M",
+          "path": "version.txt"
+        }
+      ]
+    },
+    {
+      "subject": "Revert \"Add login page (#12)\" (#18)",
+      "files": [
+        {
+          "status": "M",
+          "path": "src/login.txt"
+        }
+      ]
+    }
+  ],
+  "merge": {
+    "outcome": "clean",
+    "changes": [
+      {
+        "status": "A",
+        "path": "notes.txt"
+      },
+      {
+        "status": "M",
+        "path": "src/app.txt"
+      }
+    ]
+  },
+  "rebase": {
+    "outcome": "clean",
+    "totalSteps": 2,
+    "changes": [
+      {
+        "status": "A",
+        "path": "notes.txt"
+      },
+      {
+        "status": "M",
+        "path": "src/app.txt"
+      }
+    ]
+  }
+}
