@@ -1,0 +1,23 @@
+{
+  "scenario": "conflict-step-2",
+  "description": "rebase stops at your second commit; merge conflicts too",
+  "branch": "feature",
+  "base": "origin/main",
+  "ahead": 3,
+  "behind": 1,
+  "merge": {
+    "outcome": "conflict",
+    "conflictedFiles": [
+      "app.txt"
+    ]
+  },
+  "rebase": {
+    "outcome": "conflict",
+    "totalSteps": 3,
+    "stoppedAtStep": 2,
+    "stoppedAtCommit": "Change greeting in app",
+    "conflictedFiles": [
+      "app.txt"
+    ]
+  }
+}
