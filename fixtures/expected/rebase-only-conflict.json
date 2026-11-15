@@ -1,0 +1,20 @@
+{
+  "scenario": "rebase-only-conflict",
+  "description": "merge would be clean, but an intermediate rebase step conflicts",
+  "branch": "feature",
+  "base": "origin/main",
+  "ahead": 3,
+  "behind": 1,
+  "merge": {
+    "outcome": "clean"
+  },
+  "rebase": {
+    "outcome": "conflict",
+    "totalSteps": 3,
+    "stoppedAtStep": 2,
+    "stoppedAtCommit": "Try a new greeting",
+    "conflictedFiles": [
+      "app.txt"
+    ]
+  }
+}
