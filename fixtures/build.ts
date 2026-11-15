@@ -140,6 +140,34 @@ export const scenarios: Scenario[] = [
       },
     ],
   },
+  {
+    name: "pushed-branch",
+    description: "your branch is on origin, so rebase means a force push",
+    base: {
+      "README.md": lines("# pushed-branch fixture"),
+      "src/a.txt": lines("alpha 1", "alpha 2", "alpha 3"),
+      "src/b.txt": lines("bravo 1", "bravo 2", "bravo 3"),
+    },
+    incoming: [
+      {
+        subject: "Update b",
+        files: { "src/b.txt": lines("bravo 1", "bravo 2 (main)", "bravo 3") },
+      },
+    ],
+    // No overlap, so the rebase is clean and the push can be tested. The
+    // first two commits are on origin/feature; the third is not pushed yet.
+    feature: [
+      {
+        subject: "Edit a",
+        files: {
+          "src/a.txt": lines("alpha 1", "alpha 2 (feature)", "alpha 3"),
+        },
+      },
+      { subject: "Add d", files: { "src/d.txt": lines("delta") } },
+      { subject: "Add e", files: { "src/e.txt": lines("echo") } },
+    ],
+    pushed: 2,
+  },
 ];
 
 /** Ten lines with `greeting` on line 5, so both sides edit the same line. */
