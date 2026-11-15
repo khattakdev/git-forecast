@@ -5,5 +5,5 @@
     "erasableSyntaxOnly": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["build.ts"]
+  "include": ["*.ts"]
 }
