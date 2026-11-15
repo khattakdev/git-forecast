@@ -171,6 +171,42 @@ export const scenarios: Scenario[] = [
     ],
     pushed: 2,
   },
+  {
+    name: "squash-prs",
+    description: "main has squash-merged PRs with (#123) in their subjects",
+    base: {
+      "README.md": lines("# squash-prs fixture"),
+      "src/app.txt": lines("app 1", "app 2"),
+      "src/login.txt": lines("login: todo"),
+      "version.txt": lines("1.0.0"),
+    },
+    // Realistic GitHub subjects. Which number is the PR is our own parsing
+    // rule, not a Git outcome, so it is not in the expected file; Step 6
+    // unit-tests it against these subjects as recorded by `git log`.
+    incoming: [
+      {
+        subject: "Add login page (#12)",
+        files: { "src/login.txt": lines("login: form") },
+      },
+      {
+        subject: "Explain #7 in README (#15)",
+        files: { "README.md": lines("# squash-prs fixture", "", "See #7.") },
+      },
+      { subject: "Bump version", files: { "version.txt": lines("1.1.0") } },
+      {
+        subject: 'Revert "Add login page (#12)" (#18)',
+        files: { "src/login.txt": lines("login: todo") },
+      },
+    ],
+    feature: [
+      {
+        subject: "Edit app",
+        files: { "src/app.txt": lines("app 1", "app 2 (feature)") },
+      },
+      { subject: "Add notes", files: { "notes.txt": lines("notes") } },
+    ],
+    detail: true,
+  },
 ];
 
 /** Ten lines with `greeting` on line 5, so both sides edit the same line. */
