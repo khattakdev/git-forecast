@@ -5,10 +5,25 @@
 // system config) that the engine must not have.
 
 import { execFile } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import os from "node:os";
+import path from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * An empty file to use as Git's global config. Not `os.devNull`: on Windows
+ * that is `\\.\nul`, which Git for Windows refuses ("unable to access").
+ * A real empty file behaves the same everywhere. It lives in its own temp
+ * folder and is left for the OS to clean up.
+ */
+function emptyConfigFile(): string {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "git-forecast-config-"));
+  const file = path.join(dir, "gitconfig");
+  writeFileSync(file, "");
+  return file;
+}
 
 // Drop inherited GIT_* variables (GIT_DIR, GIT_INDEX_FILE, ... set by hooks),
 // then ignore user and system config so settings like rerere, rebase.autoStash,
@@ -29,7 +44,7 @@ export const gitConfig: Record<string, string> = {
 export const ENV: NodeJS.ProcessEnv = {
   ...baseEnv,
   GIT_CONFIG_NOSYSTEM: "1",
-  GIT_CONFIG_GLOBAL: os.devNull,
+  GIT_CONFIG_GLOBAL: emptyConfigFile(),
   GIT_CONFIG_COUNT: String(Object.keys(gitConfig).length),
   ...Object.fromEntries(
     Object.entries(gitConfig).flatMap(([key, value], i) => [
