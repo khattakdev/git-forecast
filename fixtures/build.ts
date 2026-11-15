@@ -75,7 +75,50 @@ export const scenarios: Scenario[] = [
       { subject: "Add d", files: { "src/d.txt": lines("delta") } },
     ],
   },
+  {
+    name: "conflict-step-2",
+    description: "rebase stops at your second commit; merge conflicts too",
+    base: {
+      "app.txt": appLines("greeting = hello"),
+      "notes.txt": lines("todo: nothing yet"),
+    },
+    incoming: [
+      {
+        subject: "Reword greeting in app",
+        files: { "app.txt": appLines("greeting = hi there") },
+      },
+    ],
+    // Step 1 is clean, step 2 conflicts with main, step 3 comes after the
+    // first conflict (the engine must call that one "uncertain").
+    feature: [
+      {
+        subject: "Update notes",
+        files: { "notes.txt": lines("todo: ship it") },
+      },
+      {
+        subject: "Change greeting in app",
+        files: { "app.txt": appLines("greeting = good morning") },
+      },
+      { subject: "Add extra file", files: { "extra.txt": lines("extra") } },
+    ],
+  },
 ];
+
+/** Ten lines with `greeting` on line 5, so both sides edit the same line. */
+function appLines(greeting: string): string {
+  return lines(
+    "name = demo",
+    "version = 1",
+    "port = 8080",
+    "debug = false",
+    greeting,
+    "timeout = 30",
+    "retries = 3",
+    "log = info",
+    "theme = dark",
+    "locale = en",
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Git, isolated from whoever runs this
