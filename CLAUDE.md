@@ -3,7 +3,7 @@
 A smarter `git status` that forecasts conflicts before you sync. Free, open-source portfolio project.
 
 - Plan (what and why): docs/plan.md
-- Build guide (step by step, with checks): docs/build-guide.md. Current step: **Step 5, test repos**. All seven scenarios and the speed test are built; what's left is reading each `fixtures/expected/*.json` once by hand. Then Step 6.
+- Build guide (step by step, with checks): docs/build-guide.md. Current step: **Step 6, core engine** (start with `types.ts`, and write the `rebase.ts` design note before the code).
 
 ## Layout
 
@@ -26,7 +26,7 @@ A smarter `git status` that forecasts conflicts before you sync. Free, open-sour
 - Core returns data and never prints. The CLI only formats, prompts and runs Git.
 - Read-only until the user confirms: a check never changes refs, the index or the working tree. The one exception is `git commit-tree` in the rebase simulation, which writes unreferenced objects; keep that documented.
 - No native modules. Core has zero runtime dependencies; the CLI depends only on core and `picocolors`.
-- Every Git call goes through `packages/core/src/git.ts` (`execFile`, `GIT_OPTIONAL_LOCKS=0`, `LC_ALL=C`).
+- Every Git call in the packages goes through `packages/core/src/git.ts` (`execFile`, `GIT_OPTIONAL_LOCKS=0`, `LC_ALL=C`). The one deliberate exception is `fixtures/git.ts`: the test data must not depend on the engine it tests, and it ignores user config, which the engine must not.
 - Tests first: a fixture repo and its expected result exist before the code. Expected results come from running real `git rebase` / `git merge` on a copy, never from reasoning.
 - When a prediction can't be trusted, return `"uncertain"` with a reason. Never guess.
 - Node 22+. Git 2.40+ for step-by-step rebase simulation (`git merge-tree --merge-base`); on older Git, skip that check and say so.
