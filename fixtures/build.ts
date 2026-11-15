@@ -16,6 +16,7 @@ import {
   cp,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   writeFile,
@@ -159,7 +160,8 @@ export const scenarios: Scenario[] = [
   },
   {
     name: "pushed-branch",
-    description: "your branch is on origin, so rebase means a force push",
+    description:
+      "your branch is already pushed (origin/feature), so rebase means a force push",
     base: {
       "README.md": lines("# pushed-branch fixture"),
       "src/a.txt": lines("alpha 1", "alpha 2", "alpha 3"),
@@ -399,7 +401,7 @@ export async function buildScenario(
   const work = path.join(dir, "work");
   const teammate = path.join(dir, "teammate");
 
-  await rm(dir, { recursive: true, force: true, maxRetries: 5 });
+  await removeOldFixture(dir);
   await mkdir(dir, { recursive: true });
   await git(dir, ["init", "--quiet", "--bare", "-b", "main", origin]);
 
@@ -433,8 +435,61 @@ export async function buildScenario(
   }
   await writeFiles(work, scenario.local?.unstaged ?? {});
   await writeFiles(work, scenario.local?.untracked ?? {});
+  await assertLocalStateBuilt(work, scenario);
 
   return work;
+}
+
+/**
+ * Deletes `dir` only if it is empty or an earlier fixture build (has
+ * origin.git), so a mistyped `--out` can't wipe an unrelated folder.
+ */
+async function removeOldFixture(dir: string): Promise<void> {
+  const entries = await readdir(dir).catch(() => null);
+  if (entries === null || entries.length === 0) return;
+  if (!entries.includes("origin.git")) {
+    throw new Error(
+      `${dir} exists and isn't a fixture build; refusing to delete it`,
+    );
+  }
+  await rm(dir, { recursive: true, force: true, maxRetries: 5 });
+}
+
+/**
+ * Git doesn't fail loudly on some setup mistakes: `git stash push` with
+ * nothing to stash prints "No local changes to save" and exits 0, and an
+ * "unstaged" file that was never committed is just an untracked file.
+ * Check the repo really holds the local state the scenario describes.
+ */
+async function assertLocalStateBuilt(
+  work: string,
+  scenario: Scenario,
+): Promise<void> {
+  const local = scenario.local;
+  if (!local) return;
+  const stashes = nameList(await git(work, ["stash", "list"]));
+  const unstaged = nameList(await git(work, ["diff", "--name-only"]));
+  const untracked = nameList(
+    await git(work, ["ls-files", "--others", "--exclude-standard"]),
+  );
+  const problems = [
+    ...(stashes.length === (local.stashes ?? []).length
+      ? []
+      : [
+          `expected ${(local.stashes ?? []).length} stashes, got ${stashes.length}`,
+        ]),
+    ...Object.keys(local.unstaged ?? {})
+      .filter((f) => !unstaged.includes(f))
+      .map((f) => `${f} is not an unstaged change to a tracked file`),
+    ...Object.keys(local.untracked ?? {})
+      .filter((f) => !untracked.includes(f))
+      .map((f) => `${f} is not untracked`),
+  ];
+  if (problems.length > 0) {
+    throw new Error(
+      `Scenario "${scenario.name}" set up wrong:\n- ${problems.join("\n- ")}`,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

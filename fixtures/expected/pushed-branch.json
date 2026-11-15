@@ -1,6 +1,6 @@
 {
   "scenario": "pushed-branch",
-  "description": "your branch is on origin, so rebase means a force push",
+  "description": "your branch is already pushed (origin/feature), so rebase means a force push",
   "branch": "feature",
   "base": "origin/main",
   "ahead": 3,
