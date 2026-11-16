@@ -2,9 +2,7 @@
 // a temp folder with their own isolated Git calls (not git.ts), so a bug in
 // git.ts can't hide itself by also breaking the setup.
 
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import os from "node:os";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -14,57 +12,22 @@ import {
   parseGitVersion,
   runGit,
 } from "./git.js";
+import { type Sandbox, sandbox } from "./test/repos.js";
 import { ForecastError } from "./types.js";
 
+let box: Sandbox;
 let tmp: string;
 
 beforeAll(() => {
-  tmp = mkdtempSync(path.join(os.tmpdir(), "git-forecast-gitts-"));
+  box = sandbox("gitts");
+  tmp = box.root;
 });
-afterAll(() => {
-  rmSync(tmp, { recursive: true, force: true });
-});
+afterAll(() => box.remove());
 
-/** Setup-only Git: ignores user/system config so commits always work. */
-function setup(cwd: string, args: string[]): string {
-  const empty = path.join(tmp, "empty-gitconfig");
-  writeFileSync(empty, "");
-  return execFileSync(
-    "git",
-    [
-      "-c",
-      "user.name=Test",
-      "-c",
-      "user.email=test@example.com",
-      "-c",
-      "commit.gpgsign=false",
-      "-c",
-      "init.defaultBranch=main",
-      ...args,
-    ],
-    {
-      cwd,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        GIT_CONFIG_NOSYSTEM: "1",
-        GIT_CONFIG_GLOBAL: empty,
-      },
-    },
-  );
-}
-
-function newRepo(name: string): string {
-  const dir = path.join(tmp, name);
-  setup(tmp, ["init", "--quiet", dir]);
-  return dir;
-}
-
-function commitFile(repo: string, file: string, text: string, msg: string) {
-  writeFileSync(path.join(repo, file), text);
-  setup(repo, ["add", file]);
-  setup(repo, ["commit", "--quiet", "-m", msg]);
-}
+const setup = (cwd: string, args: string[]) => box.git(cwd, args);
+const newRepo = (name: string) => box.repo(name);
+const commitFile = (repo: string, file: string, text: string, msg: string) =>
+  box.commit(repo, file, text, msg);
 
 async function forecastError(
   promise: Promise<unknown>,
