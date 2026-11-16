@@ -2,12 +2,11 @@
 // First against the shared fixture repos (answer key: fixtures/expected/),
 // then against small repos for the awkward cases found by experiment.
 
-import { execFileSync } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { checkBase, readRepo } from "./repo.js";
+import { expected, fixtureNames, fixtureWork } from "./test/fixtures.js";
 import { type Sandbox, sandbox } from "./test/repos.js";
 import { ForecastError, type ForecastErrorCode } from "./types.js";
 
@@ -38,34 +37,13 @@ async function errorOf(promise: Promise<unknown>): Promise<ForecastError> {
 }
 
 describe("fixture repos", () => {
-  const expectedDir = fileURLToPath(
-    new URL("../../../fixtures/expected/", import.meta.url),
-  );
-  const builder = fileURLToPath(
-    new URL("../../../fixtures/build.ts", import.meta.url),
-  );
-  const names = readdirSync(expectedDir)
-    .filter((f) => f.endsWith(".json"))
-    .map((f) => f.replace(/\.json$/, ""));
-  let fixtures: string;
-
-  beforeAll(() => {
-    // Same builder CI runs; --check also confirms real Git still agrees.
-    fixtures = path.join(box.root, "fixtures");
-    execFileSync(process.execPath, [builder, "--check", "--out", fixtures], {
-      stdio: "ignore",
-    });
-  }, 120_000);
-
-  it.each(names)("%s: branch, base and upstream match", async (name) => {
-    const expected = JSON.parse(
-      readFileSync(path.join(expectedDir, `${name}.json`), "utf8"),
-    );
-    const info = await readRepo({ cwd: path.join(fixtures, name, "work") });
-    expect(info.branch).toBe(expected.branch);
-    expect(info.base).toBe(expected.base);
-    expect(info.upstream?.name).toBe(expected.upstream?.name);
-    if (expected.upstream) expect(info.upstream?.gone).toBe(false);
+  it.each(fixtureNames)("%s: branch, base and upstream match", async (name) => {
+    const want = expected(name);
+    const info = await readRepo({ cwd: fixtureWork(name) });
+    expect(info.branch).toBe(want.branch);
+    expect(info.base).toBe(want.base);
+    expect(info.upstream?.name).toBe(want.upstream?.name);
+    if (want.upstream) expect(info.upstream?.gone).toBe(false);
   });
 });
 
