@@ -177,6 +177,8 @@ export type ForecastErrorCode =
   | "git-failed"
   | "not-a-git-repo"
   | "detached-head"
+  /** On a branch that has no commits yet (a brand-new repo). */
+  | "no-commits"
   | "no-base-branch";
 
 /** Thrown when the engine can't produce a report at all. Partial unknowns
