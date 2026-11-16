@@ -148,8 +148,10 @@ describe("awkward cases", () => {
 
   it("several remotes, no upstream → prefers origin", async () => {
     const work = cloneSetup("two-remotes");
-    const otherOrigin = path.join(box.root, "normal-origin.git");
-    box.git(work, ["remote", "add", "aaa", otherOrigin]);
+    // A second remote pointing at this test's own bare repo. (It once reused
+    // another test's repo, so it failed when run alone with -t.)
+    const ownOrigin = path.join(box.root, "two-remotes-origin.git");
+    box.git(work, ["remote", "add", "aaa", ownOrigin]);
     box.git(work, ["fetch", "--quiet", "aaa"]);
     box.git(work, ["switch", "--quiet", "-c", "feature"]);
     expect((await readRepo({ cwd: work })).base).toBe("origin/main");
