@@ -11,7 +11,7 @@
 //   (it changes what a real merge does, so the forecast must see it), except
 //   these two, which only change how output looks and would break parsing.
 
-import { execFile } from "node:child_process";
+import { type ExecException, execFile } from "node:child_process";
 import { stat } from "node:fs/promises";
 import { ForecastError } from "./types.js";
 
@@ -68,64 +68,79 @@ export async function runGit(
   } = options;
   const command = commandText(args);
 
-  const result = await new Promise<GitResult | NodeJS.ErrnoException>(
-    (resolve) => {
-      execFile(
-        gitBinary,
-        [...DISPLAY_OVERRIDES, ...args],
-        {
-          cwd,
-          encoding: "utf8",
-          maxBuffer: MAX_OUTPUT,
-          timeout: timeoutMs,
-          windowsHide: true,
-          env: {
-            ...process.env,
-            GIT_OPTIONAL_LOCKS: "0",
-            GIT_TERMINAL_PROMPT: "0",
-            LC_ALL: "C",
-          },
-        },
-        (error, stdout, stderr) => {
-          if (!error) return resolve({ stdout, stderr, exitCode: 0 });
-          // A number means Git ran and exited non-zero: that's an answer.
-          if (typeof error.code === "number") {
-            return resolve({ stdout, stderr, exitCode: error.code });
-          }
-          // Anything else means Git didn't run or didn't finish.
-          resolve(Object.assign(error, { stderr }));
-        },
-      );
-    },
-  );
+  // Either Git ran to the end (any exit code), or it didn't run/finish.
+  // Tagged so TypeScript can tell the two apart without casts.
+  type Outcome =
+    | { ran: true; result: GitResult }
+    | { ran: false; error: ExecException };
 
-  if (result instanceof Error) {
-    if (result.code === "ENOENT") {
+  const outcome = await new Promise<Outcome>((resolve) => {
+    execFile(
+      gitBinary,
+      [...DISPLAY_OVERRIDES, ...args],
+      {
+        cwd,
+        encoding: "utf8",
+        maxBuffer: MAX_OUTPUT,
+        timeout: timeoutMs,
+        windowsHide: true,
+        env: {
+          ...process.env,
+          GIT_OPTIONAL_LOCKS: "0",
+          GIT_TERMINAL_PROMPT: "0",
+          LC_ALL: "C",
+        },
+      },
+      (error, stdout, stderr) => {
+        if (!error) {
+          return resolve({
+            ran: true,
+            result: { stdout, stderr, exitCode: 0 },
+          });
+        }
+        // A number means Git ran and exited non-zero: that's an answer.
+        if (typeof error.code === "number") {
+          return resolve({
+            ran: true,
+            result: { stdout, stderr, exitCode: error.code },
+          });
+        }
+        // Anything else means Git didn't run or didn't finish.
+        resolve({ ran: false, error });
+      },
+    );
+  });
+
+  if (!outcome.ran) {
+    const { error } = outcome;
+    if (error.code === "ENOENT") {
       // Node says "spawn git ENOENT" both when Git is missing and when `cwd`
       // doesn't exist. Tell the two apart, or we'd send people to reinstall Git.
       if (!(await folderExists(cwd))) {
         throw new ForecastError(
           "git-failed",
           `${command}: folder not found: ${cwd}`,
-          { cause: result },
+          { cause: error },
         );
       }
       throw new ForecastError(
         "git-not-found",
         `Couldn't run ${gitBinary}. Is Git installed and on your PATH?`,
-        { cause: result },
+        { cause: error },
       );
     }
     const why =
-      result.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER"
+      error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER"
         ? "output too large"
-        : (result as { killed?: boolean }).killed
+        : error.killed
           ? `timed out after ${timeoutMs} ms`
-          : result.message;
+          : error.message;
     throw new ForecastError("git-failed", `${command}: ${why}`, {
-      cause: result,
+      cause: error,
     });
   }
+
+  const { result } = outcome;
 
   if (!okExitCodes.includes(result.exitCode)) {
     if (
