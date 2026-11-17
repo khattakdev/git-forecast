@@ -11,7 +11,7 @@
 //   (it changes what a real merge does, so the forecast must see it), except
 //   these two, which only change how output looks and would break parsing.
 
-import { type ExecException, execFile } from "node:child_process";
+import { type ExecException, execFile, spawn } from "node:child_process";
 import { stat } from "node:fs/promises";
 import { ForecastError } from "./types.js";
 
@@ -43,6 +43,16 @@ const DISPLAY_OVERRIDES = [
 ];
 const MAX_OUTPUT = 64 * 1024 * 1024; // Node's default is 1 MiB; big logs exceed it.
 const DEFAULT_TIMEOUT_MS = 30_000;
+
+/** The environment every Git call gets (see the top of this file). */
+function gitEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_TERMINAL_PROMPT: "0",
+    LC_ALL: "C",
+  };
+}
 
 function commandText(args: readonly string[]): string {
   return `git ${args.join(" ")}`;
@@ -88,12 +98,7 @@ export async function runGit(
         maxBuffer: MAX_OUTPUT,
         timeout: timeoutMs,
         windowsHide: true,
-        env: {
-          ...process.env,
-          GIT_OPTIONAL_LOCKS: "0",
-          GIT_TERMINAL_PROMPT: "0",
-          LC_ALL: "C",
-        },
+        env: gitEnv(),
       },
       (error, stdout, stderr) => {
         if (!error) {
@@ -168,6 +173,106 @@ export async function runGit(
     );
   }
   return result;
+}
+
+/**
+ * A Git process that stays open: write a line, read its answer, repeat.
+ * For batch commands like `merge-tree --stdin`, where each question depends
+ * on the previous answer, so all input can't be sent up front. Saves a
+ * process start (~5 ms) per question.
+ */
+export interface GitProcess {
+  /**
+   * Sends `line` and resolves with the answer once `recordEnd(output)` finds
+   * where it ends (an index into the output so far), or rejects if Git exits.
+   */
+  ask(line: string, recordEnd: (output: string) => number): Promise<string>;
+  /** Closes stdin and waits for Git to exit. */
+  close(): Promise<void>;
+}
+
+export function openGit(
+  args: readonly string[],
+  options: Pick<RunGitOptions, "cwd" | "gitBinary">,
+): GitProcess {
+  const { cwd, gitBinary = "git" } = options;
+  const command = commandText(args);
+  const child = spawn(gitBinary, [...DISPLAY_OVERRIDES, ...args], {
+    cwd,
+    windowsHide: true,
+    env: gitEnv(),
+  });
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdin.on("error", () => {}); // EPIPE after an early exit; see exit below
+
+  let output = "";
+  let stderr = "";
+  let waiting:
+    | {
+        recordEnd: (o: string) => number;
+        resolve: (s: string) => void;
+        reject: (e: Error) => void;
+      }
+    | undefined;
+  let failure: Error | undefined;
+
+  const settle = () => {
+    if (!waiting) return;
+    const end = waiting.recordEnd(output);
+    if (end < 0) return;
+    const answer = output.slice(0, end);
+    output = output.slice(end);
+    const { resolve } = waiting;
+    waiting = undefined;
+    resolve(answer);
+  };
+  const fail = (error: Error) => {
+    failure ??= error;
+    waiting?.reject(failure);
+    waiting = undefined;
+  };
+
+  child.stdout.on("data", (chunk: string) => {
+    output += chunk;
+    settle();
+  });
+  child.stderr.on("data", (chunk: string) => {
+    stderr += chunk;
+  });
+  child.on("error", (error) =>
+    fail(
+      new ForecastError("git-failed", `${command}: ${error.message}`, {
+        cause: error,
+      }),
+    ),
+  );
+  const exited = new Promise<void>((resolve) => {
+    child.on("close", (code) => {
+      fail(
+        new ForecastError(
+          "git-failed",
+          `${command} exited (code ${code})${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
+        ),
+      );
+      resolve();
+    });
+  });
+
+  return {
+    ask(line, recordEnd) {
+      if (failure) return Promise.reject(failure);
+      return new Promise((resolve, reject) => {
+        waiting = { recordEnd, resolve, reject };
+        child.stdin.write(`${line}\n`);
+        settle();
+      });
+    },
+    async close() {
+      child.stdin.end();
+      await exited;
+    },
+  };
 }
 
 /** Shortcut: run Git, expect exit code 0, return stdout without the trailing newline. */
