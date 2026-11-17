@@ -89,3 +89,31 @@ export function realRebase(
     conflictedFiles: conflicted,
   };
 }
+
+/**
+ * Runs the REAL merge or rebase on a copy, then `git push --dry-run` (which
+ * asks the remote but changes nothing). Undefined when the sync itself
+ * doesn't finish cleanly.
+ */
+export function realPush(
+  box: Sandbox,
+  repo: string,
+  base: string,
+  sync: "merge" | "rebase",
+  { autostash = false } = {},
+): { rewrites: number; needsForcePush: boolean } | undefined {
+  const copy = path.join(box.root, `judge-${++copies}`);
+  cpSync(repo, copy, { recursive: true });
+  const args = sync === "merge" ? ["merge", "--no-edit"] : ["rebase"];
+  if (autostash) args.push("--autostash");
+  if (box.run(copy, [...args, base]).code !== 0) return undefined;
+  const rewrites = Number(box.git(copy, ["rev-list", "--count", "HEAD..@{u}"]));
+  const push = box.run(copy, ["push", "--dry-run", "--porcelain"]);
+  const line = push.stdout.split("\n").find((l) => l.includes("refs/heads/"));
+  const flag = line?.[0];
+  if (push.code === 0 && (flag === " " || flag === "=" || flag === "*")) {
+    return { rewrites, needsForcePush: false };
+  }
+  if (flag === "!") return { rewrites, needsForcePush: true };
+  throw new Error(`unexpected git push result:\n${push.stdout}${push.stderr}`);
+}
