@@ -15,7 +15,8 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "fixtures": "node fixtures/build.ts",
-    "speed": "node fixtures/speed.ts"
+    "speed": "node fixtures/speed.ts",
+    "demo": "npm run build && vhs docs/demo.tape"
   },
   "engines": {
     "node": ">=22"
