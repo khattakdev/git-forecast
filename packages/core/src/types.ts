@@ -81,7 +81,8 @@ export interface Stash {
 export interface IncomingCommit {
   sha: string;
   subject: string;
-  /** PR number from a trailing "(#123)" in the subject, when there is one. */
+  /** PR number from the subject: a trailing "(#123)" (squash merge) or
+   *  "Merge pull request #123 from …" (merge commit). Absent when neither. */
   pr?: number;
   files: FileChange[];
 }
