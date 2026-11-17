@@ -153,3 +153,7 @@ vite.config.ts.timestamp-*
 
 # npm run demo
 .demo-bin/
+
+# Copied in by npm pack (prepack)
+packages/*/LICENSE
+packages/cli/README.md

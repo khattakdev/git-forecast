@@ -1,0 +1,46 @@
+# Publishes both packages to npm when a version tag is pushed:
+#   git tag v0.1.0 && git push origin v0.1.0
+# Needs either npm trusted publishing set up for this repo and workflow, or
+# an NPM_TOKEN repository secret (an npm automation token).
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance and trusted publishing
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - name: Tag matches both package versions
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          for pkg in packages/core packages/cli; do
+            version=$(node -p "require('./$pkg/package.json').version")
+            if [ "$version" != "$tag" ]; then
+              echo "::error::$pkg is $version but the tag is v$tag"; exit 1
+            fi
+          done
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run fixtures -- --check
+      - run: npm run pack-test
+      - name: Publish core, then the CLI
+        run: |
+          npm publish --workspace packages/core --provenance --access public
+          npm publish --workspace packages/cli --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
