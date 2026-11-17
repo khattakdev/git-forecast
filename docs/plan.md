@@ -25,7 +25,7 @@ Not for: people learning Git (git-sim serves them better), or teams on tiny bran
 | Core engine (`@git-forecast/core`) | Reads branches, upstreams and history; simulates rebase commit by commit and merge with `git merge-tree`; detects rewrites and force-push needs; returns plain data |
 | `git forecast`                     | Everything `git status` shows, plus how far main moved, which files will conflict, unpushed commits, old stashes                                                    |
 | `git forecast sync`                | Rebase vs merge side by side (conflicts, commits rewritten, force push, history shape); recommends one, then runs the pick                                          |
-| Repo config                        | `.gitforecast.json` with the team's rule, e.g. `{ "sync": "rebase" }`                                                                                               |
+| Repo config                        | `.gitforecast.json` with the team's rule, e.g. `{ "sync": "rebase", "autostash": true }`                                                                            |
 | Output                             | Colored, `NO_COLOR`- and pipe-safe; `--json` on every command                                                                                                       |
 | Tests                              | Fixture repos with known conflicts, squash merges, renames                                                                                                          |
 | Release                            | README, demo GIF, npm publish                                                                                                                                       |

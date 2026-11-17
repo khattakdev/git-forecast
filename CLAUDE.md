@@ -3,7 +3,7 @@
 A smarter `git status` that forecasts conflicts before you sync. Free, open-source portfolio project.
 
 - Plan (what and why): docs/plan.md
-- Build guide (step by step, with checks): docs/build-guide.md. Current step: **Step 6, core engine** (start with `types.ts`, and write the `rebase.ts` design note before the code).
+- Build guide (step by step, with checks): docs/build-guide.md. Current step: **Step 6, core engine**. The plan to launch (8 PRs) and the decisions behind it are in the guide's "Plan from Nov 17" section.
 
 ## Layout
 
@@ -24,7 +24,7 @@ A smarter `git status` that forecasts conflicts before you sync. Free, open-sour
 ## Rules
 
 - Core returns data and never prints. The CLI only formats, prompts and runs Git.
-- Read-only until the user confirms: a check never changes refs, the index or the working tree. The one exception is `git commit-tree` in the rebase simulation, which writes unreferenced objects; keep that documented.
+- Read-only until the user confirms: a check never changes refs, the index or the working tree. The one exception: `git merge-tree --write-tree` (merge and rebase simulation) writes unreferenced tree and blob objects that Git's cleanup removes; keep that documented. No `git commit-tree`.
 - No native modules. Core has zero runtime dependencies; the CLI depends only on core and `picocolors`.
 - Every Git call in the packages goes through `packages/core/src/git.ts` (`execFile`, `GIT_OPTIONAL_LOCKS=0`, `LC_ALL=C`). The one deliberate exception is `fixtures/git.ts`: the test data must not depend on the engine it tests, and it ignores user config, which the engine must not.
 - Tests first: a fixture repo and its expected result exist before the code. Expected results come from running real `git rebase` / `git merge` on a copy, never from reasoning.

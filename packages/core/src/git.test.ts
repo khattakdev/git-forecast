@@ -154,6 +154,25 @@ describe("runGit", () => {
     });
   });
 
+  it("sends input to Git's standard input", async () => {
+    const repo = newRepo("stdin");
+    const { stdout } = await runGit(["hash-object", "--stdin"], {
+      cwd: repo,
+      input: "hello\n",
+    });
+    // Same ID as `echo hello | git hash-object --stdin`.
+    expect(stdout.trim()).toBe("ce013625030ba8dba906f756967f9e9ca394464a");
+  });
+
+  it("closes stdin when there is no input, so --stdin can't hang", async () => {
+    const repo = newRepo("stdin-empty");
+    const { stdout } = await runGit(["hash-object", "--stdin"], {
+      cwd: repo,
+      timeoutMs: 5_000,
+    });
+    expect(stdout.trim()).toBe("e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"); // empty
+  });
+
   it("ignores display settings that would break parsing", async () => {
     const repo = newRepo("display");
     setup(repo, ["config", "color.ui", "always"]);
