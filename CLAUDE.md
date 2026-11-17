@@ -3,7 +3,7 @@
 A smarter `git status` that forecasts conflicts before you sync. Free, open-source portfolio project.
 
 - Plan (what and why): docs/plan.md
-- Build guide (step by step, with checks): docs/build-guide.md. Current step: **Step 6, core engine**. The plan to launch (8 PRs) and the decisions behind it are in the guide's "Plan from Nov 17" section.
+- Build guide (step by step, with checks): docs/build-guide.md. Current step: **Step 9, publish** (engine, CLI, README and release workflow are built; see the guide's "Plan from Nov 17"). Left: record the demo GIF, review `docs/screens.md`, tag `v0.1.0`.
 
 ## Layout
 
@@ -20,6 +20,8 @@ A smarter `git status` that forecasts conflicts before you sync. Free, open-sour
 - `npm run typecheck` (also typechecks `fixtures/`)
 - `npm run fixtures`: rebuild the test repos and rewrite `fixtures/expected/`; `-- --check` only compares (CI runs this)
 - `npm run speed`: speed test on a blobless React clone (network; not in CI)
+- `npm run pack-test`: pack both packages, install the tarballs, run the installed command on a fixture (CI runs it on all three OSes)
+- `npm run demo`: record `docs/demo.gif` with VHS
 
 ## Rules
 

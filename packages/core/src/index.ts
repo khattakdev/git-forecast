@@ -3,7 +3,7 @@
 // the same door (CLAUDE.md).
 
 /** Version of the core engine. Keep in sync with package.json when releasing. */
-export const coreVersion = "0.0.0";
+export const coreVersion = "0.1.0";
 
 export { CONFIG_FILE, type ForecastConfig } from "./config.js";
 export {

@@ -31,3 +31,21 @@ jobs:
         run: npm run fixtures -- --check
       - name: Smoke test the CLI
         run: node packages/cli/dist/cli.js --version
+
+  package:
+    name: pack and install · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Pack, install the tarballs, run the installed command
+        run: npm run pack-test

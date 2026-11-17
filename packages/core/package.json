@@ -1,6 +1,6 @@
 {
   "name": "@git-forecast/core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "The engine behind git-forecast: reads a repo and forecasts what Git will do, as plain data",
   "type": "module",
   "license": "MIT",
@@ -18,7 +18,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "node -e \"require('node:fs').copyFileSync('../../LICENSE','LICENSE')\""
   },
   "repository": {
     "type": "git",
@@ -27,5 +28,12 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "keywords": [
+    "git",
+    "merge-tree",
+    "rebase",
+    "merge",
+    "conflicts"
+  ]
 }
