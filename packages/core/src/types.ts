@@ -174,6 +174,20 @@ export interface SyncReport {
   merge: MergeForecast;
   rebase: RebaseForecast;
   recommendation: Recommendation;
+  /** Only when your uncommitted changes make Git refuse: what `--autostash`
+   *  would do instead. Matches `ifStashed` in fixtures/expected/. */
+  ifStashed?: StashedForecast;
+}
+
+/** The forecast with `git merge/rebase --autostash`. Git stashes tracked
+ *  changes (not untracked files), syncs, then re-applies the stash. */
+export interface StashedForecast {
+  /** Can still be "refused": untracked files aren't stashed. */
+  merge: MergeForecast;
+  rebase: RebaseForecast;
+  /** Files changed both by you and by the sync. Re-applying the stash may
+   *  conflict on these; Git then keeps the stash for you to resolve. */
+  reapplyOverlap: string[];
 }
 
 // ---------------------------------------------------------------------------
