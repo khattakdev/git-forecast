@@ -32,6 +32,9 @@ afterAll(() => {
   box.remove();
 });
 
+// readMerge needs facts other modules find: the base branch (repo.ts), and
+// ahead/behind plus your uncommitted files (status.ts), which decide whether
+// it's a fast-forward and whether Git refuses. Same wiring as forecast.ts.
 async function forecast(cwd: string, base?: string) {
   const repo = await readRepo(base ? { cwd, base } : { cwd });
   const status = await readStatus({ cwd, repo });
