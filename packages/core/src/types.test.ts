@@ -53,6 +53,7 @@ const conflictStep2 = {
     conflictedFiles: ["app.txt"],
   },
   recommendation: { pick: "merge", because: "history-shape" },
+  config: {},
 } satisfies SyncReport;
 
 const messyLocal = {
