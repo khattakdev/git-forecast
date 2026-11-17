@@ -22,6 +22,9 @@ export interface RunGitOptions {
   okExitCodes?: readonly number[];
   /** Kill Git after this long. Default 30 s. */
   timeoutMs?: number;
+  /** Sent to Git's standard input (for `--stdin` commands). Use it instead
+   *  of long argument lists, which Windows caps at about 32,000 characters. */
+  input?: string;
   /** For tests: the program to run instead of `git`. */
   gitBinary?: string;
 }
@@ -65,6 +68,7 @@ export async function runGit(
     okExitCodes = [0],
     timeoutMs = DEFAULT_TIMEOUT_MS,
     gitBinary = "git",
+    input,
   } = options;
   const command = commandText(args);
 
@@ -75,7 +79,7 @@ export async function runGit(
     | { ran: false; error: ExecException };
 
   const outcome = await new Promise<Outcome>((resolve) => {
-    execFile(
+    const child = execFile(
       gitBinary,
       [...DISPLAY_OVERRIDES, ...args],
       {
@@ -109,6 +113,11 @@ export async function runGit(
         resolve({ ran: false, error });
       },
     );
+    // Always close stdin, so a command that reads it can't wait forever. If
+    // Git exits before reading everything, writing fails with EPIPE; the exit
+    // code above is the real answer, so that write error is ignored.
+    child.stdin?.on("error", () => {});
+    child.stdin?.end(input ?? "");
   });
 
   if (!outcome.ran) {
