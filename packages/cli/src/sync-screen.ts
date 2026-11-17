@@ -190,6 +190,38 @@ function stacked(
   return out;
 }
 
+/** 0 behind: say so, and what's left to do (usually a push). */
+export function formatNothingToSync(
+  report: SyncReport,
+  ctx: ScreenContext,
+): string {
+  const { c } = ctx;
+  const { status } = report;
+  const out = [
+    headline(status, ctx),
+    "",
+    c.green(
+      `Nothing to sync: ${status.branch} already has everything on ${status.base}.`,
+    ),
+  ];
+  // Real git rebase still replays your commits when your branch contains
+  // merges (docs/rebase-design.md); say so if that would go wrong.
+  if (report.rebase.outcome === "conflict") {
+    out.push(
+      c.dim(
+        `(Running git rebase anyway would flatten your merges and stop at step ${report.rebase.stoppedAtStep} of ${report.rebase.totalSteps}.)`,
+      ),
+    );
+  }
+  const up = status.upstream;
+  if (status.ahead > 0 && (!up || "gone" in up)) {
+    out.push("", `${c.dim("Next:")} git push -u origin ${status.branch}`);
+  } else if (up && !("gone" in up) && up.ahead > 0) {
+    out.push("", `${c.dim("Next:")} git push`);
+  }
+  return out.join("\n");
+}
+
 /** [d]: everything the engine knows, for when the summary isn't enough. */
 export function formatDetails(report: SyncReport, ctx: ScreenContext): string {
   const { c } = ctx;

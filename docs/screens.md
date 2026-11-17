@@ -76,6 +76,21 @@ Recommended: merge · main's recent history uses merge commits
   - Then how to back out: `git rebase --abort` / `git merge --abort` while stopped, `git reset --keep ORIG_HEAD` after a finished sync. `--keep` refuses rather than lose uncommitted work.
 - **`[d]`:** every incoming commit with all its files, the rebase step list, and the reapply overlap.
 
+### Nothing to sync
+
+When you're 0 behind there's nothing to bring in, so there's no table and no prompt, and `--rebase` / `--merge` don't run:
+
+```
+feature → origin/main · 3 ahead, 0 behind · fetched 2 minutes ago
+
+Nothing to sync: feature already has everything on origin/main.
+(Running git rebase anyway would flatten your merges and stop at step 1 of 7.)
+
+Next: git push
+```
+
+The note in brackets only appears when it's true: if your branch contains merges, real `git rebase` still replays your commits, and the simulation says where that would stop.
+
 ## `--json`
 
 The report from `@git-forecast/core` (`StatusReport` or `SyncReport`), pretty-printed, nothing else on stdout. No prompt, no action. An error prints `{ "error": { "code", "message" } }`.

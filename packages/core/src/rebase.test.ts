@@ -177,6 +177,25 @@ describe("hand-made repos vs real git rebase", () => {
       },
     ],
     [
+      // 0 behind, but main was merged into the branch earlier. Git skips its
+      // "already up to date" shortcut when your history has merges: it
+      // flattens and replays your commits, and here step 1 conflicts.
+      "0 behind with main merged in earlier",
+      (name) => {
+        const repo = build(
+          name,
+          [["app.txt", "mine\n", "My edit"]],
+          [["app.txt", "theirs\n", "Main edit"]],
+        );
+        expect(() => box.git(repo, ["merge", "main"])).toThrow(); // conflict
+        writeFileSync(path.join(repo, "app.txt"), "resolved\n");
+        box.git(repo, ["add", "app.txt"]);
+        box.git(repo, ["commit", "--quiet", "--no-edit"]);
+        box.commit(repo, "more.txt", "m\n", "More work");
+        return repo;
+      },
+    ],
+    [
       "only main moved (fast-forward)",
       (name) => build(name, [], [["m.txt", "m\n", "M"]]),
     ],

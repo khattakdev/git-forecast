@@ -158,6 +158,25 @@ describe("git-forecast sync", () => {
     expect(git(work, ["status", "--porcelain"])).toContain("A  scratch.txt");
   });
 
+  it("0 behind: nothing to sync, and --rebase doesn't rewrite anything", () => {
+    // Found on a real repo: 0 behind with the base merged in earlier got a
+    // rebase/merge table and a prompt.
+    const work = fixtureCopy("clean");
+    git(work, ["merge", "--quiet", "--no-edit", "origin/main"]);
+    const before = head(work);
+    for (const args of [["sync"], ["sync", "--rebase"]]) {
+      const r = cli(work, args);
+      expect(r.code).toBe(0);
+      expect(r.stdout).toContain(
+        "Nothing to sync: feature already has everything on origin/main.",
+      );
+      expect(r.stdout).not.toContain("[r] rebase");
+      expect(r.stdout).not.toContain("Result");
+      expect(r.stdout).toContain("Next: git push -u origin feature");
+    }
+    expect(head(work)).toBe(before);
+  });
+
   it("--json prints the sync report; --rebase with --merge is an error", () => {
     const work = fixtureWork("conflict-step-2");
     expect(JSON.parse(cli(work, ["sync", "--json"]).stdout)).toMatchObject({
