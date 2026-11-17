@@ -12,7 +12,12 @@ import {
 import type { Flags } from "./cli.js";
 import type { ScreenContext } from "./format.js";
 import { askKey, type Key } from "./prompt.js";
-import { effective, formatDetails, formatSync } from "./sync-screen.js";
+import {
+  effective,
+  formatDetails,
+  formatNothingToSync,
+  formatSync,
+} from "./sync-screen.js";
 
 type Pick = "rebase" | "merge";
 
@@ -31,6 +36,12 @@ export async function runSync(
   );
   if (flags.json) {
     console.log(JSON.stringify(report, null, 2));
+    return 0;
+  }
+  // 0 behind: nothing to bring in. Don't offer (or run, even with
+  // --rebase/--merge) a sync that could only rewrite your history.
+  if (report.status.behind === 0) {
+    console.log(formatNothingToSync(report, ctx));
     return 0;
   }
 
