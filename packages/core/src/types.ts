@@ -203,7 +203,9 @@ export type ForecastErrorCode =
   | "no-commits"
   /** A merge, cherry-pick or revert was started and not finished. */
   | "operation-in-progress"
-  | "no-base-branch";
+  | "no-base-branch"
+  /** .gitforecast.json isn't valid JSON or has a value of the wrong type. */
+  | "bad-config";
 
 /** Thrown when the engine can't produce a report at all. Partial unknowns
  *  are `"uncertain"` inside a report instead. */
