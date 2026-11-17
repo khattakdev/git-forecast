@@ -5,6 +5,22 @@
 // rerere checks at once; then `diff-tree` (which files the merge changes);
 // then `check-attr` (merge drivers, LFS) on those files via stdin.
 //
+// What those Git commands do:
+// - `git merge-tree --write-tree A B`: does the same three-way merge as
+//   `git merge`, but only in Git's object database. Your branch, index and
+//   files stay untouched. Prints the resulting tree's ID and, with exit
+//   code 1, the files that would conflict.
+// - `git diff-tree -r X Y`: compares two trees (snapshots of the whole
+//   project) and lists the files that differ. Here: HEAD vs the merge result,
+//   which is exactly the set of files `git merge` would rewrite.
+// - `git check-attr merge filter -- <files>`: reads .gitattributes for those
+//   files. A custom `merge=` driver runs a program merge-tree can't run, and
+//   `filter=lfs` means Git only sees small pointer files, so in both cases
+//   we answer "uncertain" instead of guessing.
+// - rerere ("reuse recorded resolution"): when on, Git remembers how you
+//   resolved a conflict and replays it next time, so a conflict merge-tree
+//   predicts may be resolved automatically. Also "uncertain".
+//
 // `merge-tree --write-tree` stores the result tree in Git's object database.
 // Nothing points at it (no ref, index or working-tree change), and Git's
 // routine cleanup deletes it. Same for every other check in this module.
