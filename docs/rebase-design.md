@@ -39,3 +39,7 @@ Each step is `merge-tree` with base = C^, ours = previous result tree, theirs = 
 
 - Force push (`push.ts`).
 - What re-applying an autostash might conflict with (`forecast.ts` uses the merge's overlap: the end tree of a clean rebase and a clean merge touch the same files).
+
+## Found later: 0 behind is not always a no-op
+
+With nothing new on base, `git rebase` usually says "Current branch is up to date". But if your branch contains merge commits (say, base was merged in earlier), Git skips that shortcut: it flattens your history and replays your commits one by one, which can conflict on a change you already resolved in the merge. The simulation does the same thing (test: "0 behind with main merged in earlier"). The CLI's `sync` therefore says "nothing to sync" when you're 0 behind, instead of offering a rebase that would only rewrite history.
