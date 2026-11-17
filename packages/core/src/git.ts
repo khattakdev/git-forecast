@@ -275,6 +275,34 @@ export function openGit(
   };
 }
 
+/**
+ * Runs the Git command the user picked (e.g. `git rebase origin/main`) with
+ * its output going straight to the terminal, and returns the exit code.
+ * Unlike the forecast calls, this keeps the user's environment as is (their
+ * language, colours, editor and prompts): it's their command, not a check.
+ */
+export function runGitLive(
+  args: readonly string[],
+  options: Pick<RunGitOptions, "cwd" | "gitBinary">,
+): Promise<number> {
+  const { cwd, gitBinary = "git" } = options;
+  return new Promise((resolve, reject) => {
+    const child = spawn(gitBinary, [...args], { cwd, stdio: "inherit" });
+    child.on("error", (error) =>
+      reject(
+        new ForecastError(
+          "git-failed",
+          `${commandText(args)}: ${error.message}`,
+          {
+            cause: error,
+          },
+        ),
+      ),
+    );
+    child.on("close", (code) => resolve(code ?? 1));
+  });
+}
+
 /** Shortcut: run Git, expect exit code 0, return stdout without the trailing newline. */
 export async function gitOutput(
   args: readonly string[],
