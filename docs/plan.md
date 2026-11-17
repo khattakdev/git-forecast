@@ -1,10 +1,12 @@
 # git-forecast plan: v0 and v1
 
-A smarter `git status` that warns you before things go wrong and helps you fix them. v0 ships mid-January 2027 with `git forecast` and `git forecast sync`; v1 adds undo, branch cleanup, a prompt segment and guard mode by the end of February 2027.
+A smarter `git status` that explains what Git is about to do, and what it just did: it warns you before things go wrong and helps you fix them. v0 ships mid-January 2027 with `git forecast` and `git forecast sync`; v1 adds undo, branch cleanup, a prompt segment and shell integration (with guard mode) by the end of February 2027.
 
 ## Positioning
 
 It starts from the developer's goal, not the Git command. git-sim answers "what will this command do?"; git-forecast answers "what should I do?", compares the options and runs the one you pick. It reuses git-sim's best ideas (risk levels, conflict prediction with `git merge-tree`, force-push detection) and credits them openly in the README.
+
+Under the hood it's a communication layer for Git, a bit like Twilio for phones: one engine (`@git-forecast/core`) turns repo state into plain answers, and each front end (the CLI, then the shell integration, the prompt segment, later an editor) delivers them where the developer is.
 
 Goal: a polished, free, open-source portfolio piece built in public. Success is quality and content, not downloads.
 
@@ -36,18 +38,18 @@ Done means: correct results on every fixture repo; `git forecast` under 300 ms o
 
 ## v1 (end of February 2027), one small release per feature
 
-| Feature          | What it does                                                                                                                                                                                    |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `undo`           | Reads the reflog, names the last action (commit, amend, merge, rebase, reset, pull), previews the undo, runs it on confirm; offers `git revert` for anything pushed; `--list` shows the last 10 |
-| Prompt segment   | Starship / oh-my-zsh segment like `↓14 ⚠1`, from a cached result                                                                                                                                |
-| `tidy`           | Branches safe to delete, including squash-merged ones `git branch --merged` misses                                                                                                              |
-| Guard mode       | Shell hook that checks destructive Git commands and stays silent unless something would be lost                                                                                                 |
-| `--graph`        | Before/after commit graphs in the terminal, plain text from core data                                                                                                                           |
-| GitHub awareness | Optional, via the `gh` CLI login: knows when a PR is open                                                                                                                                       |
+| Feature           | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `undo`            | Reads the reflog, names the last action (commit, amend, merge, rebase, reset, pull), previews the undo, runs it on confirm; offers `git revert` for anything pushed; `--list` shows the last 10                                                                                                                                                                                                                                                                                                                                        |
+| Prompt segment    | Starship / oh-my-zsh segment like `↓14 ⚠1`, from a cached result                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `tidy`            | Branches safe to delete, including squash-merged ones `git branch --merged` misses                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Shell integration | Opt-in (`eval "$(git forecast init zsh)"`; bash, fish and PowerShell too). Bare `git` shows the dashboard (`git forecast`). After `push`, `pull`, `merge` and `rebase`, the real Git command runs untouched, then a short plain-English summary follows (e.g. "Pushed 3 commits to origin/feature · main moved 4 since: git forecast sync"), in a terminal only. Includes guard mode: destructive commands are checked and it stays silent unless something would be lost. Every other command goes straight to Git with no added time |
+| `--graph`         | Before/after commit graphs in the terminal, plain text from core data                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| GitHub awareness  | Optional, via the `gh` CLI login: knows when a PR is open                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ## Not planned for v0 or v1
 
-VS Code extension, MCP server for agents, catch-up summaries / weekly recaps, web playground or tutorials, paid features.
+VS Code extension, MCP server for agents, catch-up summaries / weekly recaps, web playground or tutorials, paid features. A terminal UI for staging and diffs: VS Code's Source Control panel, lazygit and tig already do that well; git-forecast owns forecasting and explaining (decided Nov 17, D11).
 
 ## Architecture
 
@@ -75,6 +77,10 @@ From Jacob Stopak's retrospective (https://initialcommit.com/blog/git-sim-mistak
 | Seen as a git-sim copy             | Goals-first, terminal-first, credited openly                                     |
 
 ## Open decisions
+
+- Shell integration (decided Nov 17: v1, together with guard mode; D7). Still open:
+  - **D8, how it hooks in:** an opt-in shell function (recommended: interactive shells only, never scripts or IDEs), or a `git` program ahead of real Git on PATH.
+  - **D9, which commands get a summary:** push, pull, merge and rebase first (recommended), or more.
 
 - Short command alias (only `git-forecast` / `git forecast` for now)
 - Whether v0 ships `sync` alone first
