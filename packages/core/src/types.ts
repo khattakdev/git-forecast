@@ -47,14 +47,21 @@ export interface FileChange {
   from?: string;
 }
 
-export interface UpstreamStatus {
-  /** e.g. "origin/feature" */
-  name: string;
-  /** Commits on your branch that aren't on the upstream yet (unpushed). */
-  ahead: number;
-  /** Commits on the upstream you don't have locally. */
-  behind: number;
-}
+export type UpstreamStatus =
+  | {
+      /** e.g. "origin/feature" */
+      name: string;
+      /** Commits on your branch that aren't on the upstream yet (unpushed). */
+      ahead: number;
+      /** Commits on the upstream you don't have locally. */
+      behind: number;
+    }
+  | {
+      name: string;
+      /** The upstream branch was deleted on the remote (often: its PR was
+       *  merged). Nothing to count against, so no ahead/behind. */
+      gone: true;
+    };
 
 /** Uncommitted state, as `git diff --cached`, `git diff` and `git ls-files --others` see it. */
 export interface LocalChanges {
@@ -179,6 +186,8 @@ export type ForecastErrorCode =
   | "detached-head"
   /** On a branch that has no commits yet (a brand-new repo). */
   | "no-commits"
+  /** A merge, cherry-pick or revert was started and not finished. */
+  | "operation-in-progress"
   | "no-base-branch";
 
 /** Thrown when the engine can't produce a report at all. Partial unknowns
