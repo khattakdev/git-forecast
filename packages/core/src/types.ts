@@ -177,6 +177,8 @@ export interface SyncReport {
   /** Only when your uncommitted changes make Git refuse: what `--autostash`
    *  would do instead. Matches `ifStashed` in fixtures/expected/. */
   ifStashed?: StashedForecast;
+  /** The team's rules from .gitforecast.json (empty when there's no file). */
+  config: { sync?: "rebase" | "merge"; autostash?: boolean };
 }
 
 /** The forecast with `git merge/rebase --autostash`. Git stashes tracked

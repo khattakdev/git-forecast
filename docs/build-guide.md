@@ -57,6 +57,8 @@ Build in this order; each module passes its fixtures before the next starts.
 
 Check: every fixture matches its expected file; speed test under 300 ms.
 
+Status (Nov 17): engine complete. `forecastStatus()` / `forecastSync()` match every field of every fixture's expected file; `npm run speed` on React (21,791 commits, 20-commit branch): `git forecast` ~58 ms, `git forecast sync` ~74 ms (median), within 300 ms.
+
 ### Plan from Nov 17
 
 The rest of v0 as 8 PRs, built one at a time (tests first, break-checks, CI green, then merge):

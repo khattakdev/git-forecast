@@ -18,6 +18,7 @@
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { git, makeClock, run } from "./git.ts";
 
@@ -297,7 +298,41 @@ async function main(): Promise<void> {
   console.log(
     `  git forecast sync  ${fmt(syncTotal)}  ${verdict(syncTotal)} the ${BUDGET_MS} ms budget`,
   );
+  await timeEngine(dir, runs, fmt);
   console.log(`\nClone kept at ${dir}`);
+}
+
+/**
+ * The real engine end to end, if it's built (npm run build). Loaded at run
+ * time from packages/core/dist, so the fixtures never depend on the engine's
+ * source; this part only measures it.
+ */
+async function timeEngine(
+  dir: string,
+  runs: number,
+  fmt: (ms: number) => string,
+): Promise<void> {
+  const entry = path.resolve(
+    import.meta.dirname,
+    "../packages/core/dist/index.js",
+  );
+  const core = await import(pathToFileURL(entry).href).catch(() => undefined);
+  if (!core) {
+    console.log(
+      "\nEngine not built; run `npm run build` to time it end to end.",
+    );
+    return;
+  }
+  console.log(
+    "\nThe engine end to end (Git calls run in parallel where possible):",
+  );
+  for (const name of ["forecastStatus", "forecastSync"] as const) {
+    const { median, max } = await time(runs, () => core[name]({ cwd: dir }));
+    const verdict = median <= BUDGET_MS ? "within" : "OVER";
+    console.log(
+      `  ${name.padEnd(15)} ${fmt(median)} median, ${fmt(max)} max  ${verdict} the ${BUDGET_MS} ms budget`,
+    );
+  }
 }
 
 main().catch((error: unknown) => {
