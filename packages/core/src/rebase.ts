@@ -37,7 +37,11 @@ export interface RebaseParts {
 type Mode = "auto" | "batch" | "one-by-one";
 
 /** One replayed step: clean (with the new tree) or the conflicted files. */
-type Step = { clean: true; tree: string } | { clean: false; files: string[] };
+/** One replayed step: clean (with the new tree), or the conflicted files and
+ *  the tree it was replayed onto ("ours", needed to name moved files). */
+type Step =
+  | { clean: true; tree: string }
+  | { clean: false; files: string[]; ours: string };
 
 export async function readRebase(
   options: ReadRebaseOptions,
@@ -150,15 +154,41 @@ async function simulate(
       detail: `rerere may replay a recorded resolution for ${conflicted.join(", ")}`,
     };
   }
-  const subject = await gitOutput(["log", "-1", "--format=%s", sha], { cwd });
+  // %h abbreviates the way git rebase does when it names things.
+  const [short = "", subject = ""] = (
+    await gitOutput(["log", "-1", "--format=%h%x00%s", sha], { cwd })
+  ).split("\0");
+  const ours = stopped && !stopped.clean ? stopped.ours : "";
   return {
     outcome: "conflict",
     totalSteps,
     stoppedAtStep: stop + 1,
     stoppedAtCommit: subject,
     stoppedAtSha: sha,
-    conflictedFiles: conflicted,
+    conflictedFiles: unique(
+      conflicted.map((file) => rebaseName(file, { sha, short, subject, ours })),
+    ),
   };
+}
+
+/**
+ * When a file and a folder of the same name clash, Git moves the file aside
+ * as `<path>~<label>`. merge-tree labels the sides with the IDs we gave it;
+ * git rebase labels them "HEAD" (the branch being built) and
+ * "<short id> (<subject>)" (the commit being replayed). Use Git's names, so
+ * the forecast lists the same files `git rebase` leaves conflicted.
+ */
+function rebaseName(
+  file: string,
+  side: { sha: string; short: string; subject: string; ours: string },
+): string {
+  if (file.endsWith(`~${side.sha}`)) {
+    return `${file.slice(0, -side.sha.length)}${side.short} (${side.subject})`;
+  }
+  if (side.ours && file.endsWith(`~${side.ours}`)) {
+    return `${file.slice(0, -side.ours.length)}HEAD`;
+  }
+  return file;
 }
 
 /**
@@ -206,7 +236,11 @@ async function replayBatch(
         steps.push({ clean: true, tree: next });
         tree = next;
       } else if (status === "0") {
-        steps.push({ clean: false, files: unique(files.filter(Boolean)) });
+        steps.push({
+          clean: false,
+          files: unique(files.filter(Boolean)),
+          ours: tree,
+        });
         break;
       } else {
         throw new Error(
@@ -259,7 +293,11 @@ async function replayOneByOne(
       steps.push({ clean: true, tree: next });
       tree = next;
     } else {
-      steps.push({ clean: false, files: unique(files.filter(Boolean)) });
+      steps.push({
+        clean: false,
+        files: unique(files.filter(Boolean)),
+        ours: tree,
+      });
       break;
     }
   }
