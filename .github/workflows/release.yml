@@ -38,9 +38,7 @@ jobs:
       - run: npm test
       - run: npm run fixtures -- --check
       - run: npm run pack-test
-      - name: Publish core, then the CLI
-        run: |
-          npm publish --workspace packages/core --provenance --access public
-          npm publish --workspace packages/cli --provenance --access public
+      - name: Publish core, then the CLI (skipping versions already on npm)
+        run: scripts/publish.sh packages/core packages/cli
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
