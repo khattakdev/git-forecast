@@ -4,9 +4,7 @@
 
 Your branch has been open for three days and `main` kept moving. Will a rebase conflict? On which commit? Will you need a force push? Would a merge be cleaner? `git-forecast` answers before you run anything, then runs the option you pick.
 
-<!-- Demo GIF: record with `npm run demo` (needs VHS), then uncomment:
 ![git forecast on a branch whose rebase stops at step 2](docs/demo.gif)
--->
 
 ```bash
 npx git-forecast
